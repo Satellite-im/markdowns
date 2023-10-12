@@ -80,7 +80,9 @@ pub fn text_to_html(text: &str) -> String {
                 _ => format!("<{tag}>{}</{tag}>", entry.text.trim()),
             };
 
-            if let Some(to_append) = stack.back_mut() {
+            if matches!(tag, "language" | "code") {
+                stack.push_back(StackEntry::new(Markdown::Code, text));
+            } else if let Some(to_append) = stack.back_mut() {
                 to_append.text += &text;
             } else {
                 // should never happen
@@ -178,14 +180,15 @@ pub fn text_to_html(text: &str) -> String {
                     } else {
                         // the pattern looks like this: ``[\w+]`. Make a code segment.
                         let text = stack.pop_back().map(|x| x.text).unwrap_or_default();
-                        let html =
-                            format!("`<pre><code class=\"language-text\">{text}</code></pre>");
+                        let code =
+                            format!("<pre><code class=\"language-text\">{text}</code></pre>");
                         if let Some(entry) = stack.back_mut() {
-                            entry.text += &html;
+                            entry.text.push('`');
                         } else {
                             // should never happen
-                            stack.push_back(StackEntry::new(Markdown::Line, html));
+                            stack.push_back(StackEntry::new(Markdown::Line, String::from('`')));
                         }
+                        stack.push_back(StackEntry::new(Markdown::Code, code));
                     }
                 }
                 _ => stack.push_back(Markdown::Backtick.into()),
@@ -319,12 +322,15 @@ enum Markdown {
     H4,
     // 5x octothorpe
     H5,
+
+    // don't do emoji replacement here
+    Code,
 }
 
 impl ToString for Markdown {
     fn to_string(&self) -> String {
         match self {
-            Markdown::Line => String::new(),
+            Markdown::Line | Markdown::Code => String::new(),
             Markdown::NewLine => String::from("\n"),
             Markdown::Star => String::from("*"),
             Markdown::DoubleStar => String::from("**"),
