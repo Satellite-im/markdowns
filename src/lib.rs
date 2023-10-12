@@ -117,37 +117,8 @@ pub fn text_to_html(text: &str) -> String {
                         if prev_matches(&stack, Markdown::TripleBacktick) {
                             // handle triple backtick
                             convert_html(&mut stack, "code", Markdown::TripleBacktick);
-                        } else if matches!(
-                            stack.back().map(|x| x.md.clone()),
-                            Some(Markdown::Language { .. })
-                        ) {
-                            let entry = stack.pop_back().unwrap();
-                            if let Markdown::Language { lang, lang_done } = entry.md {
-                                if !lang_done {
-                                    stack.push_back(StackEntry::new(
-                                        Markdown::None,
-                                        format!("<code>{}</code>", lang),
-                                    ));
-                                } else {
-                                    stack.push_back(StackEntry::new(
-                                        Markdown::None,
-                                        format!(
-                                            "<code language=\"{}\">{}</code>",
-                                            lang, entry.text
-                                        ),
-                                    ));
-                                }
-                            } else {
-                                unreachable!();
-                            }
                         } else {
-                            stack.push_back(
-                                Markdown::Language {
-                                    lang: String::new(),
-                                    lang_done: false,
-                                }
-                                .into(),
-                            );
+                            stack.push_back(Markdown::TripleBacktick.into());
                         }
                     } else {
                         // the pattern looks like this: ``[\w+]`. Make a code segment.
@@ -183,20 +154,6 @@ pub fn text_to_html(text: &str) -> String {
                 }
             },
             '\n' => match prev_md {
-                Markdown::Language { lang, lang_done } if !lang_done => {
-                    stack.pop_back();
-                    if lang.trim().is_empty() {
-                        stack.push_back(Markdown::TripleBacktick.into());
-                    } else {
-                        stack.push_back(StackEntry::new(
-                            Markdown::Language {
-                                lang: lang.trim().to_string(),
-                                lang_done: true,
-                            },
-                            String::new(),
-                        ));
-                    }
-                }
                 Markdown::TripleBacktick => {
                     if let Some(entry) = stack.back_mut() {
                         entry.text += "\n";
@@ -204,7 +161,7 @@ pub fn text_to_html(text: &str) -> String {
                 }
                 _ => {
                     // markdown doesn't wrap around lines. So collapse the stack
-                    let mut builder = String::new();
+                    let mut builder = String::from('\n');
                     while let Some(entry) = stack.pop_back() {
                         builder = entry.to_string() + &builder;
                     }
@@ -212,46 +169,7 @@ pub fn text_to_html(text: &str) -> String {
                 }
             },
             c => {
-                if stack
-                    .back()
-                    .map(|x| matches!(x.md, Markdown::Language { lang_done, .. } if !lang_done))
-                    .unwrap_or_default()
-                {
-                    let prev = stack.pop_back().map(|x| x.md);
-                    if let Some(Markdown::Language {
-                        mut lang,
-                        lang_done: _,
-                    }) = prev
-                    {
-                        if c.is_alphabetic() {
-                            lang.push(c);
-                            stack.push_back(
-                                Markdown::Language {
-                                    lang,
-                                    lang_done: false,
-                                }
-                                .into(),
-                            );
-                        } else {
-                            if lang.trim().is_empty() {
-                                stack.push_back(StackEntry::new(
-                                    Markdown::TripleBacktick,
-                                    String::from(c),
-                                ));
-                            } else {
-                                stack.push_back(StackEntry::new(
-                                    Markdown::Language {
-                                        lang: lang.trim().to_string(),
-                                        lang_done: true,
-                                    },
-                                    String::from(c),
-                                ));
-                            }
-                        }
-                    } else {
-                        unreachable!();
-                    }
-                } else if let Some(entry) = stack.back_mut() {
+                if let Some(entry) = stack.back_mut() {
                     entry.text.push(c);
                 } else {
                     unreachable!();
@@ -285,8 +203,6 @@ enum Markdown {
     DoubleBacktick,
     // multiline code
     TripleBacktick,
-    // multiline code - a triple backtick with a language
-    Language { lang: String, lang_done: bool },
     // nothing
     Tilde,
     // strikethrough
@@ -304,7 +220,6 @@ impl ToString for Markdown {
             Markdown::Backtick => String::from("`"),
             Markdown::DoubleBacktick => String::from("``"),
             Markdown::TripleBacktick => String::from("```"),
-            Markdown::Language { lang, lang_done: _ } => format!("```{lang}"),
             Markdown::Tilde => String::from("~"),
             Markdown::DoubleTilde => String::from("~~"),
         }
@@ -405,6 +320,15 @@ mod tests {
     #[test]
     fn test_language2() {
         let test_str = "```rust\n hello world```";
+        let expected = "<code language=\"rust\"> hello world</code>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+    }
+
+    #[test]
+    fn test_language3() {
+        let test_str = r#"```rust
+        hello world
+        ```"#;
         let expected = "<code language=\"rust\"> hello world</code>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
