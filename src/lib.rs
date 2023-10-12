@@ -181,7 +181,8 @@ pub fn text_to_html(text: &str) -> String {
                     } else {
                         // the pattern looks like this: ``[\w+]`. Make a code segment.
                         let text = stack.pop_back().map(|x| x.text).unwrap_or_default();
-                        let html = format!("`<code>{text}</code>");
+                        let html =
+                            format!("`<pre><code class=\"language-text\">{text}</code></pre>");
                         if let Some(entry) = stack.back_mut() {
                             entry.text += &html;
                         } else {
@@ -366,21 +367,21 @@ mod tests {
     #[test]
     fn test_backtick() {
         let test_str = "`hello world`";
-        let expected = "<code>hello world</code>";
+        let expected = "<pre><code class=\"language-text\">hello world</code></pre>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_language1() {
         let test_str = "```rust hello world```";
-        let expected = "<code language=\"rust\">hello world</code>";
+        let expected = "<pre><code class=\"language-rust\">hello world</code></pre>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_language2() {
         let test_str = "```rust\n hello world```";
-        let expected = "<code language=\"rust\">hello world</code>";
+        let expected = "<pre><code class=\"language-rust\">hello world</code></pre>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
@@ -389,7 +390,7 @@ mod tests {
         let test_str = r#"```rust
         hello world
         ```"#;
-        let expected = "<code language=\"rust\">hello world</code>";
+        let expected = "<pre><code class=\"language-rust\">hello world</code></pre>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
@@ -411,7 +412,7 @@ mod tests {
     #[test]
     fn test_partial1() {
         let test_str = "hello world ``h`ello **world** ~hello world";
-        let expected = "hello world `<code>h</code>ello <strong>world</strong> ~hello world";
+        let expected = "hello world `<pre><code class=\"language-text\">h</code></pre>ello <strong>world</strong> ~hello world";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
@@ -446,14 +447,14 @@ mod tests {
     #[test]
     fn test_empty_backtick() {
         let test_str = "` ` `test`";
-        let expected = "` ` <code>test</code>";
+        let expected = "` ` <pre><code class=\"language-text\">test</code></pre>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_empty_triple_backtick() {
         let test_str = "``` ``` ```test```";
-        let expected = "``` ``` <code language=\"text\">test</code>";
+        let expected = "``` ``` <pre><code class=\"language-text\">test</code></pre>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
