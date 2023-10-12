@@ -255,8 +255,10 @@ pub fn text_to_html(text: &str) -> String {
                 _ => {
                     if let Some(entry) = stack.back_mut() {
                         entry.text.push('\n');
+                        stack.push_back(Markdown::Line.into());
+                    } else {
+                        stack.push_back(StackEntry::new(Markdown::Line, String::from('\n')));
                     }
-                    stack.push_back(Markdown::Line.into());
                 }
             },
             c => {
