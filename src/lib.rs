@@ -80,9 +80,7 @@ pub fn text_to_html(text: &str) -> String {
                 _ => format!("<{tag}>{}</{tag}>", entry.text.trim()),
             };
 
-            if tag == "language" {
-                stack.push_back(StackEntry::new(Markdown::MultilineCode, text))
-            } else if let Some(to_append) = stack.back_mut() {
+            if let Some(to_append) = stack.back_mut() {
                 to_append.text += &text;
             } else {
                 // should never happen
@@ -111,39 +109,6 @@ pub fn text_to_html(text: &str) -> String {
             .back()
             .map(|x| (x.md.clone(), x.text.is_empty()))
             .expect("stack should not be empty");
-
-        // special handling for line breaks
-        match prev_md {
-            Markdown::NewLine => {
-                if char.is_whitespace() {
-                    if let Some(entry) = stack.back_mut() {
-                        entry.text += &String::from(char);
-                        continue;
-                    }
-                } else if char != '\n' {
-                    stack.push_back(StackEntry::new(Markdown::Line, String::from(char)));
-                } else {
-                    stack.pop_back();
-                    stack.push_back(Markdown::LineBreak.into());
-                    continue;
-                }
-            }
-            Markdown::LineBreak => {
-                if char.is_whitespace() {
-                    if let Some(entry) = stack.back_mut() {
-                        entry.text += &String::from(char);
-                        continue;
-                    }
-                } else if char != '\n' {
-                    stack.push_back(StackEntry::new(Markdown::Line, String::from(char)));
-                } else {
-                    stack.push_back(Markdown::LineBreak.into());
-                    continue;
-                }
-            }
-            _ => {}
-        }
-
         match char {
             '*' => match prev_md {
                 Markdown::Star => {
@@ -288,7 +253,13 @@ pub fn text_to_html(text: &str) -> String {
                     }
                 }
                 _ => {
-                    stack.push_back(Markdown::NewLine.into());
+                    if let Some(entry) = stack.back_mut() {
+                        // todo: merge previous list entries
+                        entry.text.push('\n');
+                        stack.push_back(Markdown::Line.into());
+                    } else {
+                        stack.push_back(StackEntry::new(Markdown::Line, String::from('\n')));
+                    }
                 }
             },
             c => {
@@ -304,21 +275,6 @@ pub fn text_to_html(text: &str) -> String {
 
     let mut builder = String::new();
     while let Some(entry) = stack.pop_back() {
-        if let Some(prev) = stack.back_mut() {
-            if !matches!(
-                entry.md,
-                Markdown::NewLine | Markdown::LineBreak | Markdown::MultilineCode,
-            ) {
-                if matches!(entry.md, Markdown::Line) {
-                    // don't nest spans
-                    prev.text += &entry.text;
-                } else {
-                    prev.text += &entry.to_string();
-                }
-
-                continue;
-            }
-        }
         builder = entry.to_string() + &builder;
     }
     builder
@@ -328,9 +284,6 @@ pub fn text_to_html(text: &str) -> String {
 enum Markdown {
     // a line of text
     Line,
-    NewLine,
-    LineBreak,
-    MultilineCode,
     // italics
     Star,
     // bold
@@ -364,9 +317,7 @@ enum Markdown {
 impl ToString for Markdown {
     fn to_string(&self) -> String {
         match self {
-            Markdown::Line | Markdown::MultilineCode => String::new(),
-            Markdown::NewLine => String::from("\n"),
-            Markdown::LineBreak => String::from("<br>"),
+            Markdown::Line => String::new(),
             Markdown::Star => String::from("*"),
             Markdown::DoubleStar => String::from("**"),
             Markdown::Underscore => String::from("_"),
@@ -413,13 +364,6 @@ impl ToString for StackEntry {
             Markdown::H3 => get_heading_text("h3"),
             Markdown::H4 => get_heading_text("h4"),
             Markdown::H5 => get_heading_text("h5"),
-            Markdown::Line => {
-                if self.text.is_empty() {
-                    String::new()
-                } else {
-                    format!("<span>{}</span>", self.text)
-                }
-            }
             _ => self.md.to_string() + &self.text,
         }
     }
@@ -453,49 +397,48 @@ mod tests {
     #[test]
     fn test_something() {
         let test_str = "hello world";
-        let expected = "<span>hello world</span>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).as_str(), test_str);
     }
 
     #[test]
     fn test_star() {
         let test_str = "*hello world*";
-        let expected = "<span><em>hello world</em></span>";
+        let expected = "<em>hello world</em>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_double_star() {
         let test_str = "**hello world**";
-        let expected = "<span><strong>hello world</strong></span>";
+        let expected = "<strong>hello world</strong>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_underscore() {
         let test_str = "_hello world_";
-        let expected = "<span><em>hello world</em></span>";
+        let expected = "<em>hello world</em>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_double_underscore() {
         let test_str = "__hello world__";
-        let expected = "<span><strong>hello world</strong></span>";
+        let expected = "<strong>hello world</strong>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_double_tilde() {
         let test_str = "~~hello world~~";
-        let expected = "<span><s>hello world</s></span>";
+        let expected = "<s>hello world</s>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_backtick() {
         let test_str = "`hello world`";
-        let expected = "<span><pre><code class=\"language-text\">hello world</code></pre></span>";
+        let expected = "<pre><code class=\"language-text\">hello world</code></pre>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
@@ -600,8 +543,7 @@ mod tests {
     #[test]
     fn test_multiple1() {
         let test_str = "hello world *hello world* __hello *world*__";
-        let expected =
-            "<span>hello world <em>hello world</em> <strong>hello <em>world</em></strong></span>";
+        let expected = "hello world <em>hello world</em> <strong>hello <em>world</em></strong>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
@@ -609,70 +551,70 @@ mod tests {
     fn test_multiple2() {
         let test_str = "hello world *hello world* __hello *world ~~world~~*__";
         let expected =
-            "<span>hello world <em>hello world</em> <strong>hello <em>world <s>world</s></em></strong></span>";
+            "hello world <em>hello world</em> <strong>hello <em>world <s>world</s></em></strong>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_multiple3() {
         let test_str = "*italics* and then **bold**";
-        let expected = "<span><em>italics</em> and then <strong>bold</strong></span>";
+        let expected = "<em>italics</em> and then <strong>bold</strong>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_partial1() {
         let test_str = "hello world ``h`ello **world** ~hello world";
-        let expected = "<span>hello world `<pre><code class=\"language-text\">h</code></pre>ello <strong>world</strong> ~hello world</span>";
+        let expected = "hello world `<pre><code class=\"language-text\">h</code></pre>ello <strong>world</strong> ~hello world";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_empty_star() {
         let test_str = "* * *test*";
-        let expected = "<span>* * <em>test</em></span>";
+        let expected = "* * <em>test</em>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_empty_double_star() {
         let test_str = "** ** **test**";
-        let expected = "<span>** ** <strong>test</strong></span>";
+        let expected = "** ** <strong>test</strong>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_empty_underscore() {
         let test_str = "_ _ _test_";
-        let expected = "<span>_ _ <em>test</em></span>";
+        let expected = "_ _ <em>test</em>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_empty_double_underscore() {
         let test_str = "__ __ __test__";
-        let expected = "<span>__ __ <strong>test</strong></span>";
+        let expected = "__ __ <strong>test</strong>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_empty_backtick() {
         let test_str = "` ` `test`";
-        let expected = "<span>` ` <pre><code class=\"language-text\">test</code></pre></span>";
+        let expected = "` ` <pre><code class=\"language-text\">test</code></pre>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_empty_triple_backtick() {
         let test_str = "``` ``` ```test```";
-        let expected = "<span>``` ``` </span><pre><code class=\"language-text\">test</code></pre>";
+        let expected = "``` ``` <pre><code class=\"language-text\">test</code></pre>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_empty_strikethrough() {
         let test_str = "~~ ~~ ~~test~~";
-        let expected = "<span>~~ ~~ <s>test</s></span>";
+        let expected = "~~ ~~ <s>test</s>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 }
