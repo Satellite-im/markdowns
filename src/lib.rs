@@ -12,7 +12,7 @@ use std::collections::VecDeque;
 
 pub fn text_to_html(text: &str) -> String {
     let mut stack: VecDeque<StackEntry> = VecDeque::new();
-    stack.push_back(Markdown::None.into());
+    stack.push_back(Markdown::Line.into());
 
     // empty tags or just whitespace are not allowed
     let convert_html = |stack: &mut VecDeque<StackEntry>, tag: &str, md: Markdown| {
@@ -34,7 +34,7 @@ pub fn text_to_html(text: &str) -> String {
 
         if entry.text.trim().is_empty() {
             stack.push_back(StackEntry::new(
-                Markdown::None,
+                Markdown::Line,
                 format!("{}{}", md.to_string(), entry.text),
             ));
             stack.push_back(md.into());
@@ -84,7 +84,7 @@ pub fn text_to_html(text: &str) -> String {
                 to_append.text += &text;
             } else {
                 // should never happen
-                stack.push_back(StackEntry::new(Markdown::None, text));
+                stack.push_back(StackEntry::new(Markdown::Line, text));
             }
         }
     };
@@ -100,7 +100,7 @@ pub fn text_to_html(text: &str) -> String {
             entry.text += &text;
         } else {
             // should never happen
-            stack.push_back(StackEntry::new(Markdown::None, text));
+            stack.push_back(StackEntry::new(Markdown::Line, text));
         }
     };
 
@@ -108,7 +108,7 @@ pub fn text_to_html(text: &str) -> String {
         let (prev_md, prev_empty) = stack
             .back()
             .map(|x| (x.md.clone(), x.text.is_empty()))
-            .expect("stack should not be nonempty");
+            .expect("stack should not be empty");
         match char {
             '*' => match prev_md {
                 Markdown::Star => {
@@ -172,7 +172,7 @@ pub fn text_to_html(text: &str) -> String {
                             entry.text += &html;
                         } else {
                             // should never happen
-                            stack.push_back(StackEntry::new(Markdown::None, html));
+                            stack.push_back(StackEntry::new(Markdown::Line, html));
                         }
                     }
                 }
@@ -198,6 +198,54 @@ pub fn text_to_html(text: &str) -> String {
                     stack.push_back(Markdown::Tilde.into());
                 }
             },
+            '#' => match prev_md {
+                Markdown::Line => {
+                    if prev_empty {
+                        stack.pop_back();
+                        stack.push_back(Markdown::H1.into());
+                    } else if let Some(entry) = stack.back_mut() {
+                        entry.text.push('#');
+                    }
+                }
+                Markdown::H1 => {
+                    if prev_empty {
+                        stack.pop_back();
+                        stack.push_back(Markdown::H2.into());
+                    } else if let Some(entry) = stack.back_mut() {
+                        entry.text.push('#');
+                    }
+                }
+                Markdown::H2 => {
+                    if prev_empty {
+                        stack.pop_back();
+                        stack.push_back(Markdown::H3.into());
+                    } else if let Some(entry) = stack.back_mut() {
+                        entry.text.push('#');
+                    }
+                }
+                Markdown::H3 => {
+                    if prev_empty {
+                        stack.pop_back();
+                        stack.push_back(Markdown::H4.into());
+                    } else if let Some(entry) = stack.back_mut() {
+                        entry.text.push('#');
+                    }
+                }
+                Markdown::H4 => {
+                    if prev_empty {
+                        stack.pop_back();
+                        stack.push_back(Markdown::H5.into());
+                    } else if let Some(entry) = stack.back_mut() {
+                        entry.text.push('#');
+                    }
+                }
+                Markdown::H5 => {
+                    if let Some(entry) = stack.back_mut() {
+                        entry.text.push('#');
+                    }
+                }
+                _ => stack.push_back(Markdown::H1.into()),
+            },
             '\n' => match prev_md {
                 Markdown::TripleBacktick => {
                     if let Some(entry) = stack.back_mut() {
@@ -205,12 +253,10 @@ pub fn text_to_html(text: &str) -> String {
                     }
                 }
                 _ => {
-                    // markdown doesn't wrap around lines. So collapse the stack
-                    let mut builder = String::from('\n');
-                    while let Some(entry) = stack.pop_back() {
-                        builder = entry.to_string() + &builder;
+                    if let Some(entry) = stack.back_mut() {
+                        entry.text.push('\n');
                     }
-                    stack.push_back(StackEntry::new(Markdown::None, builder));
+                    stack.push_back(Markdown::Line.into());
                 }
             },
             c => {
@@ -218,7 +264,7 @@ pub fn text_to_html(text: &str) -> String {
                     entry.text.push(c);
                 } else {
                     // should never happen
-                    stack.push_back(StackEntry::new(Markdown::None, String::from(c)));
+                    stack.push_back(StackEntry::new(Markdown::Line, String::from(c)));
                 }
             }
         }
@@ -233,8 +279,8 @@ pub fn text_to_html(text: &str) -> String {
 
 #[derive(Clone, Eq, PartialEq)]
 enum Markdown {
-    // none
-    None,
+    // a line of text
+    Line,
     // italics
     Star,
     // bold
@@ -253,12 +299,22 @@ enum Markdown {
     Tilde,
     // strikethrough
     DoubleTilde,
+    // octothorpe becomes heading
+    H1,
+    // double octothorpe
+    H2,
+    // 3x octothorpe
+    H3,
+    // 4x octothorpe
+    H4,
+    // 5x octothorpe
+    H5,
 }
 
 impl ToString for Markdown {
     fn to_string(&self) -> String {
         match self {
-            Markdown::None => String::new(),
+            Markdown::Line => String::new(),
             Markdown::Star => String::from("*"),
             Markdown::DoubleStar => String::from("**"),
             Markdown::Underscore => String::from("_"),
@@ -268,6 +324,11 @@ impl ToString for Markdown {
             Markdown::TripleBacktick => String::from("```"),
             Markdown::Tilde => String::from("~"),
             Markdown::DoubleTilde => String::from("~~"),
+            Markdown::H1 => String::from("#"),
+            Markdown::H2 => String::from("##"),
+            Markdown::H3 => String::from("###"),
+            Markdown::H4 => String::from("####"),
+            Markdown::H5 => String::from("#####"),
         }
     }
 }
@@ -279,7 +340,14 @@ struct StackEntry {
 
 impl ToString for StackEntry {
     fn to_string(&self) -> String {
-        self.md.to_string() + &self.text
+        match self.md {
+            Markdown::H1 if self.text.starts_with(' ') => format!("<h1>{}</h1>", self.text),
+            Markdown::H2 if self.text.starts_with(' ') => format!("<h2>{}</h2>", self.text),
+            Markdown::H3 if self.text.starts_with(' ') => format!("<h3>{}</h3>", self.text),
+            Markdown::H4 if self.text.starts_with(' ') => format!("<h4>{}</h4>", self.text),
+            Markdown::H5 if self.text.starts_with(' ') => format!("<h5>{}</h5>", self.text),
+            _ => self.md.to_string() + &self.text,
+        }
     }
 }
 
@@ -376,6 +444,81 @@ mod tests {
         hello world
         ```"#;
         let expected = "<pre><code class=\"language-rust\">hello world</code></pre>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+    }
+
+    #[test]
+    fn test_h1() {
+        let test_str = "# heading";
+        let expected = "<h1>heading</h1>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+
+        let test_str = "#heading";
+        let expected = "#heading";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+
+        let test_str = "# # heading";
+        let expected = "<h1># heading</h1>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+    }
+
+    #[test]
+    fn test_h2() {
+        let test_str = "## heading";
+        let expected = "<h2>heading</h2>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+
+        let test_str = "##heading";
+        let expected = "##heading";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+
+        let test_str = "## ## heading";
+        let expected = "<h2>## heading</h2>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+    }
+
+    #[test]
+    fn test_h3() {
+        let test_str = "### heading";
+        let expected = "<h3>heading</h3>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+
+        let test_str = "###heading";
+        let expected = "###heading";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+
+        let test_str = "### ### heading";
+        let expected = "<h3>### heading</h3>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+    }
+
+    #[test]
+    fn test_h4() {
+        let test_str = "#### heading";
+        let expected = "<h4>heading</h4>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+
+        let test_str = "####heading";
+        let expected = "####heading";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+
+        let test_str = "#### #### heading";
+        let expected = "<h4>#### heading</h4>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+    }
+
+    #[test]
+    fn test_h5() {
+        let test_str = "##### heading";
+        let expected = "<h5>heading</h5>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+
+        let test_str = "#####heading";
+        let expected = "#####heading";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+
+        let test_str = "##### ##### heading";
+        let expected = "<h5>##### heading</h5>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
