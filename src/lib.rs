@@ -340,12 +340,27 @@ struct StackEntry {
 
 impl ToString for StackEntry {
     fn to_string(&self) -> String {
+        let get_heading_text = |tag: &str| {
+            if self.text.len() < 2 {
+                return self.md.to_string() + &self.text;
+            }
+
+            let first = self.text[0..1].to_string();
+            let second = self.text[1..].trim();
+
+            if first.trim().is_empty() && !second.is_empty() {
+                format!("<{tag}>{second}</{tag}>")
+            } else {
+                self.md.to_string() + &self.text
+            }
+        };
+
         match self.md {
-            Markdown::H1 if self.text.starts_with(' ') => format!("<h1>{}</h1>", self.text),
-            Markdown::H2 if self.text.starts_with(' ') => format!("<h2>{}</h2>", self.text),
-            Markdown::H3 if self.text.starts_with(' ') => format!("<h3>{}</h3>", self.text),
-            Markdown::H4 if self.text.starts_with(' ') => format!("<h4>{}</h4>", self.text),
-            Markdown::H5 if self.text.starts_with(' ') => format!("<h5>{}</h5>", self.text),
+            Markdown::H1 => get_heading_text("h1"),
+            Markdown::H2 => get_heading_text("h2"),
+            Markdown::H3 => get_heading_text("h3"),
+            Markdown::H4 => get_heading_text("h4"),
+            Markdown::H5 => get_heading_text("h5"),
             _ => self.md.to_string() + &self.text,
         }
     }
