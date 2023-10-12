@@ -65,12 +65,16 @@ pub fn text_to_html(text: &str) -> String {
                                 None => default,
                             },
                         };
-                        to_append.text +=
-                            &format!("<code class=\"language-{language}\">{}</code>", text.trim())
+                        to_append.text += &format!(
+                            "<pre><code class=\"language-{language}\">{}</code></pre>",
+                            text.trim()
+                        )
                     }
                     "code" => {
-                        to_append.text +=
-                            &format!("<code class=\"language-text\">{}</code>", entry.text.trim())
+                        to_append.text += &format!(
+                            "<pre><code class=\"language-text\">{}</code></pre>",
+                            entry.text.trim()
+                        )
                     }
                     _ => to_append.text += &format!("<{tag}>{}</{tag}>", entry.text.trim()),
                 };
