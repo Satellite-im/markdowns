@@ -31,20 +31,45 @@ pub fn text_to_html(text: &str) -> String {
 
     // empty tags or just whitespace are not allowed
     let convert_html = |stack: &mut VecDeque<StackEntry>, tag: &str, md: Markdown| {
-        if let Some(entry) = stack.pop_back() {
-            if entry.text.trim().is_empty() {
-                stack.push_back(StackEntry::new(
-                    Markdown::None,
-                    format!("{}{}", md.to_string(), entry.text),
-                ));
+        let entry = match stack.pop_back() {
+            Some(x) => x,
+            None => {
+                // should never happen
                 stack.push_back(md.into());
-            } else if let Some(to_append) = stack.back_mut() {
-                // this is specifically designed to work with prismjs. doing this string parsing stuff
-                // simplifies the state machine a lot.
-                match tag {
-                    "language" => {
-                        let default = ("text".to_string(), entry.text.clone());
-                        let (language, text) = match entry.text.find('\n') {
+                return;
+            }
+        };
+
+        if std::mem::discriminant(&md) != std::mem::discriminant(&entry.md) {
+            // if there was an error and the 2 were not the same type, put it back.
+            stack.push_back(entry);
+            stack.push_back(md.into());
+            return;
+        }
+
+        if entry.text.trim().is_empty() {
+            stack.push_back(StackEntry::new(
+                Markdown::None,
+                format!("{}{}", md.to_string(), entry.text),
+            ));
+            stack.push_back(md.into());
+        } else {
+            // this is specifically designed to work with prismjs. doing this string parsing stuff
+            // simplifies the state machine a lot.
+            // get the text and either append it to the previous element or push it on the stack.
+            let text = match tag {
+                "language" => {
+                    let default = ("text".to_string(), entry.text.clone());
+                    let (language, text) = match entry.text.find('\n') {
+                        Some(x) => {
+                            let before = entry.text[0..x].to_string();
+                            let after: String = entry.text.chars().skip(x + 1).collect();
+                            match before.trim() {
+                                x if !x.is_empty() => (x.to_string(), after),
+                                _ => default,
+                            }
+                        }
+                        None => match entry.text.find(' ') {
                             Some(x) => {
                                 let before = entry.text[0..x].to_string();
                                 let after: String = entry.text.chars().skip(x + 1).collect();
@@ -53,36 +78,29 @@ pub fn text_to_html(text: &str) -> String {
                                     _ => default,
                                 }
                             }
-                            None => match entry.text.find(' ') {
-                                Some(x) => {
-                                    let before = entry.text[0..x].to_string();
-                                    let after: String = entry.text.chars().skip(x + 1).collect();
-                                    match before.trim() {
-                                        x if !x.is_empty() => (x.to_string(), after),
-                                        _ => default,
-                                    }
-                                }
-                                None => default,
-                            },
-                        };
-                        to_append.text += &format!(
-                            "<pre><code class=\"language-{language}\">{}</code></pre>",
-                            text.trim()
-                        )
-                    }
-                    "code" => {
-                        to_append.text += &format!(
-                            "<pre><code class=\"language-text\">{}</code></pre>",
-                            entry.text.trim()
-                        )
-                    }
-                    _ => to_append.text += &format!("<{tag}>{}</{tag}>", entry.text.trim()),
-                };
+                            None => default,
+                        },
+                    };
+                    format!(
+                        "<pre><code class=\"language-{language}\">{}</code></pre>",
+                        text.trim()
+                    )
+                }
+                "code" => {
+                    format!(
+                        "<pre><code class=\"language-text\">{}</code></pre>",
+                        entry.text.trim()
+                    )
+                }
+                _ => format!("<{tag}>{}</{tag}>", entry.text.trim()),
+            };
+
+            if let Some(to_append) = stack.back_mut() {
+                to_append.text += &text;
             } else {
-                unreachable!();
+                // should never happen
+                stack.push_back(StackEntry::new(Markdown::None, text));
             }
-        } else {
-            unreachable!();
         }
     };
 
@@ -92,11 +110,12 @@ pub fn text_to_html(text: &str) -> String {
 
     // fold back of stack into previous entry
     let fold_prev = |stack: &mut VecDeque<StackEntry>| {
-        let builder = stack.pop_back().map(|x| x.to_string()).unwrap_or_default();
+        let text = stack.pop_back().map(|x| x.to_string()).unwrap_or_default();
         if let Some(entry) = stack.back_mut() {
-            entry.text += &builder;
+            entry.text += &text;
         } else {
-            unreachable!()
+            // should never happen
+            stack.push_back(StackEntry::new(Markdown::None, text));
         }
     };
 
@@ -166,7 +185,8 @@ pub fn text_to_html(text: &str) -> String {
                         if let Some(entry) = stack.back_mut() {
                             entry.text += &html;
                         } else {
-                            unreachable!()
+                            // should never happen
+                            stack.push_back(StackEntry::new(Markdown::None, html));
                         }
                     }
                 }
@@ -211,7 +231,8 @@ pub fn text_to_html(text: &str) -> String {
                 if let Some(entry) = stack.back_mut() {
                     entry.text.push(c);
                 } else {
-                    unreachable!();
+                    // should never happen
+                    stack.push_back(StackEntry::new(Markdown::None, String::from(c)));
                 }
             }
         }
