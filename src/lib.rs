@@ -109,6 +109,18 @@ pub fn text_to_html(text: &str) -> String {
             .back()
             .map(|x| (x.md.clone(), x.text.is_empty()))
             .expect("stack should not be empty");
+
+        if matches!(prev_md, Markdown::NewLine) {
+            if char.is_whitespace() {
+                if let Some(entry) = stack.back_mut() {
+                    entry.text += &String::from(char);
+                    continue;
+                }
+            } else {
+                stack.push_back(Markdown::Line.into());
+            }
+        }
+
         match char {
             '*' => match prev_md {
                 Markdown::Star => {
@@ -253,13 +265,7 @@ pub fn text_to_html(text: &str) -> String {
                     }
                 }
                 _ => {
-                    if let Some(entry) = stack.back_mut() {
-                        // todo: merge previous list entries
-                        entry.text.push('\n');
-                        stack.push_back(Markdown::Line.into());
-                    } else {
-                        stack.push_back(StackEntry::new(Markdown::Line, String::from('\n')));
-                    }
+                    stack.push_back(Markdown::NewLine.into());
                 }
             },
             c => {
@@ -284,6 +290,7 @@ pub fn text_to_html(text: &str) -> String {
 enum Markdown {
     // a line of text
     Line,
+    NewLine,
     // italics
     Star,
     // bold
@@ -318,6 +325,7 @@ impl ToString for Markdown {
     fn to_string(&self) -> String {
         match self {
             Markdown::Line => String::new(),
+            Markdown::NewLine => String::from("\n"),
             Markdown::Star => String::from("*"),
             Markdown::DoubleStar => String::from("**"),
             Markdown::Underscore => String::from("_"),
