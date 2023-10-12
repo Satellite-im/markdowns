@@ -37,8 +37,36 @@ pub fn text_to_html(text: &str) -> String {
                     format!("{}{}", md.to_string(), entry.text),
                 ));
                 stack.push_back(md.into());
-            } else if let Some(entry2) = stack.back_mut() {
-                entry2.text += &format!("<{tag}>{}</{tag}>", entry.text);
+            } else if let Some(to_append) = stack.back_mut() {
+                match tag {
+                    "language" => {
+                        let default = ("text".to_string(), entry.text.clone());
+                        let (language, text) = match entry.text.find('\n') {
+                            Some(x) => {
+                                let before = entry.text[0..x].to_string();
+                                let after: String = entry.text.chars().skip(x + 1).collect();
+                                match before.trim() {
+                                    x if !x.is_empty() => (x.to_string(), after),
+                                    _ => default,
+                                }
+                            }
+                            None => match entry.text.find(' ') {
+                                Some(x) => {
+                                    let before = entry.text[0..x].to_string();
+                                    let after: String = entry.text.chars().skip(x + 1).collect();
+                                    match before.trim() {
+                                        x if !x.is_empty() => (x.to_string(), after),
+                                        _ => default,
+                                    }
+                                }
+                                None => default,
+                            },
+                        };
+                        to_append.text +=
+                            &format!("<code language=\"{language}\">{}</code>", text.trim())
+                    }
+                    _ => to_append.text += &format!("<{tag}>{}</{tag}>", entry.text.trim()),
+                };
             } else {
                 unreachable!();
             }
@@ -116,7 +144,7 @@ pub fn text_to_html(text: &str) -> String {
                         stack.pop_back();
                         if prev_matches(&stack, Markdown::TripleBacktick) {
                             // handle triple backtick
-                            convert_html(&mut stack, "code", Markdown::TripleBacktick);
+                            convert_html(&mut stack, "language", Markdown::TripleBacktick);
                         } else {
                             stack.push_back(Markdown::TripleBacktick.into());
                         }
@@ -313,14 +341,14 @@ mod tests {
     #[test]
     fn test_language1() {
         let test_str = "```rust hello world```";
-        let expected = "<code language=\"rust\"> hello world</code>";
+        let expected = "<code language=\"rust\">hello world</code>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
     #[test]
     fn test_language2() {
         let test_str = "```rust\n hello world```";
-        let expected = "<code language=\"rust\"> hello world</code>";
+        let expected = "<code language=\"rust\">hello world</code>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
@@ -329,7 +357,7 @@ mod tests {
         let test_str = r#"```rust
         hello world
         ```"#;
-        let expected = "<code language=\"rust\"> hello world</code>";
+        let expected = "<code language=\"rust\">hello world</code>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
@@ -393,7 +421,7 @@ mod tests {
     #[test]
     fn test_empty_triple_backtick() {
         let test_str = "``` ``` ```test```";
-        let expected = "``` ``` <code>test</code>";
+        let expected = "``` ``` <code language=\"text\">test</code>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
