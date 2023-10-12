@@ -198,6 +198,18 @@ pub fn text_to_html(text: &str) -> String {
                         entry.text += "\n";
                     }
                 }
+                // Markdown::Newline(x) => {
+                //     let entry = stack.pop_back().unwrap();
+                //     let new_x = if entry.text.is_empty() {
+                //         x + 1
+                //     } else if let Some(back2) = stack.back_mut() {
+                //         back2.text += &entry.to_string();
+                //         1
+                //     } else {
+                //         unreachable!()
+                //     };
+                //     stack.push_back(Markdown::Newline(new_x).into());
+                // }
                 _ => {
                     // markdown doesn't wrap around lines. So collapse the stack
                     let mut builder = String::from('\n');
@@ -205,6 +217,7 @@ pub fn text_to_html(text: &str) -> String {
                         builder = entry.to_string() + &builder;
                     }
                     stack.push_back(StackEntry::new(Markdown::None, builder));
+                    // stack.push_back(Markdown::Newline(1).into());
                 }
             },
             c => {
@@ -246,6 +259,8 @@ enum Markdown {
     Tilde,
     // strikethrough
     DoubleTilde,
+    // used to insert br tags
+    // Newline(usize),
 }
 
 impl ToString for Markdown {
@@ -261,6 +276,17 @@ impl ToString for Markdown {
             Markdown::TripleBacktick => String::from("```"),
             Markdown::Tilde => String::from("~"),
             Markdown::DoubleTilde => String::from("~~"),
+            // Markdown::Newline(x) => match x {
+            //     0 => String::new(),
+            //     1 => String::from("\n"),
+            //     x => {
+            //         let mut acc = "\n".to_string();
+            //         for _ in 1..*x {
+            //             acc += "<br>";
+            //         }
+            //         acc
+            //     }
+            // },
         }
     }
 }
