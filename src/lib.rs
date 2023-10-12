@@ -3,26 +3,11 @@ use std::collections::VecDeque;
 /// markdowns
 /// text to html, with support for the following
 /// - italics
-///     - *x*
-///     - _x_
 /// - bold
-///     - **x**
-///     - __x__
 /// - strikethrough
-///     - ~~x~~
 /// - code
-///     - `int a = 0;`
-///     - ```int a = 0;```
 /// - multiline code
-///     ```
-///     int a = 0;
-///     int b = 0;
-///     ```
 /// - multiline code with a language
-///     ```rust
-///     let a = 0;
-///     let b = 0;
-///     ```
 ///
 
 pub fn text_to_html(text: &str) -> String {
