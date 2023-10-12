@@ -254,6 +254,7 @@ pub fn text_to_html(text: &str) -> String {
                 }
                 _ => {
                     if let Some(entry) = stack.back_mut() {
+                        // todo: merge previous list entries
                         entry.text.push('\n');
                         stack.push_back(Markdown::Line.into());
                     } else {
@@ -551,6 +552,13 @@ mod tests {
         let test_str = "hello world *hello world* __hello *world ~~world~~*__";
         let expected =
             "hello world <em>hello world</em> <strong>hello <em>world <s>world</s></em></strong>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+    }
+
+    #[test]
+    fn test_multiple3() {
+        let test_str = "*italics* and then **bold**";
+        let expected = "<em>italics</em> and then <strong>bold</strong>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
