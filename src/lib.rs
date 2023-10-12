@@ -115,7 +115,7 @@ pub fn text_to_html(text: &str) -> String {
         if matches!(prev_md, Markdown::NewLine) {
             if char.is_whitespace() {
                 if let Some(entry) = stack.back_mut() {
-                    entry.text += &String::from(char);
+                    entry.text.push(char);
                     continue;
                 }
             } else {
