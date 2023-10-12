@@ -38,6 +38,8 @@ pub fn text_to_html(text: &str) -> String {
                 ));
                 stack.push_back(md.into());
             } else if let Some(to_append) = stack.back_mut() {
+                // this is specifically designed to work with prismjs. doing this string parsing stuff
+                // simplifies the state machine a lot.
                 match tag {
                     "language" => {
                         let default = ("text".to_string(), entry.text.clone());
@@ -63,7 +65,7 @@ pub fn text_to_html(text: &str) -> String {
                             },
                         };
                         to_append.text +=
-                            &format!("<code language=\"{language}\">{}</code>", text.trim())
+                            &format!("<code class=\"language-{language}\">{}</code>", text.trim())
                     }
                     _ => to_append.text += &format!("<{tag}>{}</{tag}>", entry.text.trim()),
                 };
