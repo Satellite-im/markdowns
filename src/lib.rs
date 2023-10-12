@@ -24,7 +24,6 @@ use std::collections::VecDeque;
 ///     let b = 0;
 ///     ```
 ///
-/// Note that code segments are wrapped in a paragraph tag.
 
 pub fn text_to_html(text: &str) -> String {
     let mut stack: VecDeque<StackEntry> = VecDeque::new();
@@ -66,16 +65,12 @@ pub fn text_to_html(text: &str) -> String {
                                 None => default,
                             },
                         };
-                        to_append.text += &format!(
-                            "<p><code class=\"language-{language}\">{}</code></p>",
-                            text.trim()
-                        )
+                        to_append.text +=
+                            &format!("<code class=\"language-{language}\">{}</code>", text.trim())
                     }
                     "code" => {
-                        to_append.text += &format!(
-                            "<p><code class=\"language-text\">{}</code></p>",
-                            entry.text.trim()
-                        )
+                        to_append.text +=
+                            &format!("<code class=\"language-text\">{}</code>", entry.text.trim())
                     }
                     _ => to_append.text += &format!("<{tag}>{}</{tag}>", entry.text.trim()),
                 };
