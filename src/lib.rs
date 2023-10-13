@@ -313,9 +313,9 @@ pub fn text_to_html(text: &str) -> String {
     let mut block_quote_combiner = VecDeque::<String>::new();
     let add_block_quote = |block_quote_combiner: &mut VecDeque<String>, builder: &mut String| {
         if let Some(first) = block_quote_combiner.pop_back() {
-            let mut block_quote_inner = format!("<p>{first}</p>");
+            let mut block_quote_inner = format!("<p>{}</p>", first.trim());
             while let Some(next) = block_quote_combiner.pop_front() {
-                block_quote_inner += &format!("\n<p>{next}</p>")
+                block_quote_inner += &format!("\n<p>{}</p>", next.trim())
             }
             let block_quote_entry = StackEntry::new(Markdown::BlockQuote, block_quote_inner);
             let tmp = block_quote_entry.to_string() + builder;
@@ -634,6 +634,13 @@ mod tests {
     fn test_block_quote3() {
         let test_str = "some stuff\n> b1\n> b2\n\n> b3";
         let expected = "some stuff\n<blockquote>\n<p>b1</p>\n<p>b2</p>\n</blockquote>\n\n<blockquote>\n<p>b3</p>\n</blockquote>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+    }
+
+    #[test]
+    fn test_block_quote4() {
+        let test_str = "some stuff\n> b1\n> b2  \n more stuff";
+        let expected = "some stuff\n<blockquote>\n<p>b1</p>\n<p>b2</p>\n</blockquote>\n more stuff";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
