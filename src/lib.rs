@@ -10,7 +10,7 @@
 // for the devs - some markdown is parsed in StackEntry::to_string() - the headings and emojis
 use std::collections::VecDeque;
 mod emojis;
-use emojis::replace_emojis;
+pub use emojis::replace_emojis;
 
 pub fn text_to_html(text: &str) -> String {
     let mut stack: VecDeque<StackEntry> = VecDeque::new();
@@ -360,6 +360,7 @@ struct StackEntry {
 impl ToString for StackEntry {
     fn to_string(&self) -> String {
         let get_heading_text = |tag: &str| {
+            // a heading needs at least 2 characters - one space and one character for the title.
             if self.text.len() < 2 {
                 return self.md.to_string() + &self.text;
             }

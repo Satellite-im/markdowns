@@ -1,4 +1,4 @@
-pub(crate) fn replace_emojis(input: &str) -> String {
+pub fn replace_emojis(input: &str) -> String {
     let mut builder = String::new();
     let mut stack = String::new();
 
