@@ -313,6 +313,14 @@ pub fn text_to_html(text: &str) -> String {
 
     let mut builder = String::new();
 
+    // want something like this:
+    // > line 1
+    // > line 2
+    // to be in a single blockquote tag. So the state machine removed newlines between otherwise successive block quotes.
+    // now all that's left is to use a stack to combine them.
+    //
+    // this approach works for adding a single new feature (in this case block quotes). But who knows if this can be
+    // extended to multiple features, such as different types of lists.
     let mut block_quote_combiner = VecDeque::<String>::new();
     let add_block_quote = |block_quote_combiner: &mut VecDeque<String>, builder: &mut String| {
         if let Some(first) = block_quote_combiner.pop_front() {
