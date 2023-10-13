@@ -277,7 +277,27 @@ pub fn text_to_html(text: &str) -> String {
                 stack.push_back(Markdown::GreaterThan.into());
             }
             ' ' if matches!(prev_md, Markdown::GreaterThan) && prev_empty => {
+                // replace the "> " with a BlockQuote
                 stack.pop_back();
+
+                // if prev was a newline and the one before that was a block quote, get rid of the newline
+                if stack
+                    .back()
+                    .map(|x| matches!(x.md, Markdown::NewLine) && x.text.is_empty())
+                    .unwrap_or_default()
+                {
+                    if let Some(prev2) = stack.pop_back() {
+                        // if it wasn't a block quote, put the prev entry back
+                        if !stack
+                            .back()
+                            .map(|x| matches!(x.md, Markdown::BlockQuote))
+                            .unwrap_or_default()
+                        {
+                            stack.push_back(prev2);
+                        }
+                    }
+                }
+
                 stack.push_back(Markdown::BlockQuote.into());
             }
             c => {
@@ -301,7 +321,8 @@ pub fn text_to_html(text: &str) -> String {
                 block_quote_inner += &format!("\n<p>{next}</p>")
             }
             let block_quote_entry = StackEntry::new(Markdown::BlockQuote, block_quote_inner);
-            *builder = block_quote_entry.to_string() + &builder;
+            let tmp = block_quote_entry.to_string() + builder;
+            *builder = tmp;
         }
     };
 
