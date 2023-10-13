@@ -114,17 +114,6 @@ pub fn text_to_html(text: &str) -> String {
             .map(|x| (x.md.clone(), x.text.is_empty()))
             .expect("stack should not be empty");
 
-        if matches!(prev_md, Markdown::NewLine) {
-            if char.is_whitespace() {
-                if let Some(entry) = stack.back_mut() {
-                    entry.text.push(char);
-                    continue;
-                }
-            } else {
-                stack.push_back(Markdown::Line.into());
-            }
-        }
-
         match char {
             '*' => match prev_md {
                 Markdown::Star => {
@@ -315,7 +304,7 @@ pub fn text_to_html(text: &str) -> String {
 
     let mut block_quote_combiner = VecDeque::<String>::new();
     let add_block_quote = |block_quote_combiner: &mut VecDeque<String>, builder: &mut String| {
-        if let Some(first) = block_quote_combiner.pop_front() {
+        if let Some(first) = block_quote_combiner.pop_back() {
             let mut block_quote_inner = format!("<p>{first}</p>");
             while let Some(next) = block_quote_combiner.pop_front() {
                 block_quote_inner += &format!("\n<p>{next}</p>")
@@ -621,17 +610,8 @@ mod tests {
 
     #[test]
     fn test_block_quote() {
-        let test_str = r#"
-some stuff
-> b1
-> b2"#;
-        let expected = r#"
-some stuff
-<blockquote>
-<p>b1</p>
-<p>b2</p>
-</blockquote>"#;
-
+        let test_str = "some stuff\n> b1\n> b2";
+        let expected = "some stuff\n<blockquote>\n<p>b1</p>\n<p>b2</p>\n</blockquote>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
