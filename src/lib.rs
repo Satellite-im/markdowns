@@ -631,6 +631,13 @@ mod tests {
     }
 
     #[test]
+    fn test_block_quote3() {
+        let test_str = "some stuff\n> b1\n> b2\n\n> b3";
+        let expected = "some stuff\n<blockquote>\n<p>b1</p>\n<p>b2</p>\n</blockquote>\n\n<blockquote>\n<p>b3</p>\n</blockquote>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+    }
+
+    #[test]
     fn test_failed_block_quote() {
         let test_str = ">should not be blockquote";
         let expected = ">should not be blockquote";
