@@ -12,10 +12,6 @@ use std::collections::VecDeque;
 mod emojis;
 pub use emojis::replace_emojis;
 
-pub fn transform_single_emoji(input: &str) -> String {
-    emojis::wrap_single_emoji_in_span(input, "span", "single-emoji")
-}
-
 pub fn text_to_html(text: &str) -> String {
     let mut stack: VecDeque<StackEntry> = VecDeque::new();
     stack.push_back(Markdown::Line.into());
