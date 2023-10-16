@@ -114,17 +114,6 @@ pub fn text_to_html(text: &str) -> String {
             .map(|x| (x.md.clone(), x.text.is_empty()))
             .expect("stack should not be empty");
 
-        if matches!(prev_md, Markdown::NewLine) {
-            if char.is_whitespace() {
-                if let Some(entry) = stack.back_mut() {
-                    entry.text.push(char);
-                    continue;
-                }
-            } else {
-                stack.push_back(Markdown::Line.into());
-            }
-        }
-
         match char {
             '*' => match prev_md {
                 Markdown::Star => {
@@ -266,13 +255,40 @@ pub fn text_to_html(text: &str) -> String {
             '\n' => match prev_md {
                 Markdown::TripleBacktick => {
                     if let Some(entry) = stack.back_mut() {
-                        entry.text += "\n";
+                        entry.text.push('\n');
                     }
                 }
                 _ => {
                     stack.push_back(Markdown::NewLine.into());
                 }
             },
+            '>' if matches!(prev_md, Markdown::NewLine | Markdown::Line) && prev_empty => {
+                stack.push_back(Markdown::GreaterThan.into());
+            }
+            ' ' if matches!(prev_md, Markdown::GreaterThan) && prev_empty => {
+                // replace the "> " with a BlockQuote
+                stack.pop_back();
+
+                // if prev was a newline and the one before that was a block quote, get rid of the newline
+                if stack
+                    .back()
+                    .map(|x| matches!(x.md, Markdown::NewLine) && x.text.is_empty())
+                    .unwrap_or_default()
+                {
+                    if let Some(prev2) = stack.pop_back() {
+                        // if it wasn't a block quote, put the prev entry back
+                        if !stack
+                            .back()
+                            .map(|x| matches!(x.md, Markdown::BlockQuote))
+                            .unwrap_or_default()
+                        {
+                            stack.push_back(prev2);
+                        }
+                    }
+                }
+
+                stack.push_back(Markdown::BlockQuote.into());
+            }
             c => {
                 if let Some(entry) = stack.back_mut() {
                     entry.text.push(c);
@@ -285,9 +301,38 @@ pub fn text_to_html(text: &str) -> String {
     }
 
     let mut builder = String::new();
+
+    // want something like this:
+    // > line 1
+    // > line 2
+    // to be in a single blockquote tag. So the state machine removed newlines between otherwise successive block quotes.
+    // now all that's left is to use a stack to combine them.
+    //
+    // this approach works for adding a single new feature (in this case block quotes). But who knows if this can be
+    // extended to multiple features, such as different types of lists.
+    let mut block_quote_combiner = VecDeque::<String>::new();
+    let add_block_quote = |block_quote_combiner: &mut VecDeque<String>, builder: &mut String| {
+        if let Some(first) = block_quote_combiner.pop_back() {
+            let mut block_quote_inner = format!("<p>{}</p>", first.trim());
+            while let Some(next) = block_quote_combiner.pop_front() {
+                block_quote_inner += &format!("\n<p>{}</p>", next.trim())
+            }
+            let block_quote_entry = StackEntry::new(Markdown::BlockQuote, block_quote_inner);
+            let tmp = block_quote_entry.to_string() + builder;
+            *builder = tmp;
+        }
+    };
+
     while let Some(entry) = stack.pop_back() {
-        builder = entry.to_string() + &builder;
+        match entry.md {
+            Markdown::BlockQuote => block_quote_combiner.push_back(entry.text),
+            _ => {
+                add_block_quote(&mut block_quote_combiner, &mut builder);
+                builder = entry.to_string() + &builder;
+            }
+        }
     }
+    add_block_quote(&mut block_quote_combiner, &mut builder);
     builder
 }
 
@@ -324,6 +369,9 @@ enum Markdown {
     H4,
     // 5x octothorpe
     H5,
+    // block quote
+    GreaterThan,
+    BlockQuote,
 
     // don't do emoji replacement here
     Code,
@@ -332,7 +380,7 @@ enum Markdown {
 impl ToString for Markdown {
     fn to_string(&self) -> String {
         match self {
-            Markdown::Line | Markdown::Code => String::new(),
+            Markdown::Line | Markdown::Code | Markdown::BlockQuote => String::new(),
             Markdown::NewLine => String::from("\n"),
             Markdown::Star => String::from("*"),
             Markdown::DoubleStar => String::from("**"),
@@ -348,6 +396,7 @@ impl ToString for Markdown {
             Markdown::H3 => String::from("###"),
             Markdown::H4 => String::from("####"),
             Markdown::H5 => String::from("#####"),
+            Markdown::GreaterThan => String::from(">"),
         }
     }
 }
@@ -383,6 +432,12 @@ impl ToString for StackEntry {
             Markdown::H3 => get_heading_text("h3"),
             Markdown::H4 => get_heading_text("h4"),
             Markdown::H5 => get_heading_text("h5"),
+            Markdown::BlockQuote => {
+                format!(
+                    "<blockquote>\n{}\n</blockquote>",
+                    replace_emojis(&self.text)
+                )
+            }
             // simplify the state machine
             Markdown::Code => self.md.to_string() + &self.text,
             _ => self.md.to_string() + &replace_emojis(&self.text),
@@ -558,6 +613,41 @@ mod tests {
 
         let test_str = "##### ##### heading";
         let expected = "<h5>##### heading</h5>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+    }
+
+    #[test]
+    fn test_block_quote() {
+        let test_str = "some stuff\n> b1\n> b2";
+        let expected = "some stuff\n<blockquote>\n<p>b1</p>\n<p>b2</p>\n</blockquote>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+    }
+
+    #[test]
+    fn test_block_quote2() {
+        let test_str = "> should be blockquote";
+        let expected = "<blockquote>\n<p>should be blockquote</p>\n</blockquote>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+    }
+
+    #[test]
+    fn test_block_quote3() {
+        let test_str = "some stuff\n> b1\n> b2\n\n> b3";
+        let expected = "some stuff\n<blockquote>\n<p>b1</p>\n<p>b2</p>\n</blockquote>\n\n<blockquote>\n<p>b3</p>\n</blockquote>";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+    }
+
+    #[test]
+    fn test_block_quote4() {
+        let test_str = "some stuff\n> b1\n> b2  \n more stuff";
+        let expected = "some stuff\n<blockquote>\n<p>b1</p>\n<p>b2</p>\n</blockquote>\n more stuff";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+    }
+
+    #[test]
+    fn test_failed_block_quote() {
+        let test_str = ">should not be blockquote";
+        let expected = ">should not be blockquote";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
 
