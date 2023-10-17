@@ -35,3 +35,15 @@ fn process_stack<'a>(stack: &'a str) -> &'a str {
         _ => stack,
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test1() {
+        let input = ":)";
+        let expected = "🙂";
+        assert_eq!(&replace_emojis(input), expected);
+    }
+}
