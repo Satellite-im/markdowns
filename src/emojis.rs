@@ -41,7 +41,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test1() {
+    fn replace_emojis_test1() {
         let input = ":)";
         let expected = "🙂";
         assert_eq!(&replace_emojis(input), expected);

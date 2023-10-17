@@ -728,4 +728,11 @@ mod tests {
         let expected = "~~ ~~ <s>test</s>";
         assert_eq!(text_to_html(test_str).as_str(), expected);
     }
+
+    #[test]
+    fn test_emoji1() {
+        let test_str = ":)";
+        let expected = "🙂";
+        assert_eq!(text_to_html(test_str).as_str(), expected);
+    }
 }
