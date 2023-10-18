@@ -8,11 +8,12 @@
 /// - multiline code with a language
 ///
 // for the devs - some markdown is parsed in StackEntry::to_string() - the headings and emojis
-use std::collections::VecDeque;
+use std::{collections::VecDeque, ops::Range};
 mod emojis;
 pub use emojis::replace_emojis;
 
-pub fn text_to_html(text: &str) -> String {
+// returns the converted text and a list of indices which point to sections that aren't code blocks
+pub fn text_to_html(text: &str) -> (String, Vec<Range<usize>>) {
     let mut stack: VecDeque<StackEntry> = VecDeque::new();
     stack.push_back(Markdown::Line.into());
 
@@ -323,8 +324,18 @@ pub fn text_to_html(text: &str) -> String {
         }
     };
 
+    // todo: return a vec of indices that don't contain code blocks
+    let mut indices: Vec<Range<usize>> = Vec::new();
+    let mut start_idx = 0_usize;
     while let Some(entry) = stack.pop_back() {
         match entry.md {
+            Markdown::Code => {
+                if start_idx < builder.len() {
+                    indices.push(start_idx..builder.len());
+                }
+                builder = entry.to_string() + &builder;
+                start_idx = builder.len().saturating_sub(1);
+            }
             Markdown::BlockQuote => block_quote_combiner.push_back(entry.text),
             _ => {
                 add_block_quote(&mut block_quote_combiner, &mut builder);
@@ -333,7 +344,7 @@ pub fn text_to_html(text: &str) -> String {
         }
     }
     add_block_quote(&mut block_quote_combiner, &mut builder);
-    builder
+    (builder, indices)
 }
 
 #[derive(Clone, Eq, PartialEq)]
@@ -467,69 +478,69 @@ mod tests {
     #[test]
     fn test_nothing() {
         let nothing = "";
-        assert_eq!(text_to_html(nothing).as_str(), nothing);
+        assert_eq!(text_to_html(nothing).0.as_str(), nothing);
     }
 
     #[test]
     fn test_something() {
         let test_str = "hello world";
-        assert_eq!(text_to_html(test_str).as_str(), test_str);
+        assert_eq!(text_to_html(test_str).0.as_str(), test_str);
     }
 
     #[test]
     fn test_star() {
         let test_str = "*hello world*";
         let expected = "<em>hello world</em>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_double_star() {
         let test_str = "**hello world**";
         let expected = "<strong>hello world</strong>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_underscore() {
         let test_str = "_hello world_";
         let expected = "<em>hello world</em>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_double_underscore() {
         let test_str = "__hello world__";
         let expected = "<strong>hello world</strong>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_double_tilde() {
         let test_str = "~~hello world~~";
         let expected = "<s>hello world</s>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_backtick() {
         let test_str = "`hello world`";
         let expected = "<pre><code class=\"language-text\">hello world</code></pre>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_language1() {
         let test_str = "```rust hello world```";
         let expected = "<pre><code class=\"language-rust\">hello world</code></pre>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_language2() {
         let test_str = "```rust\n hello world```";
         let expected = "<pre><code class=\"language-rust\">hello world</code></pre>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
@@ -538,124 +549,124 @@ mod tests {
         hello world
         ```"#;
         let expected = "<pre><code class=\"language-rust\">hello world</code></pre>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_h1() {
         let test_str = "# heading";
         let expected = "<h1>heading</h1>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
 
         let test_str = "#heading";
         let expected = "#heading";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
 
         let test_str = "# # heading";
         let expected = "<h1># heading</h1>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_h2() {
         let test_str = "## heading";
         let expected = "<h2>heading</h2>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
 
         let test_str = "##heading";
         let expected = "##heading";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
 
         let test_str = "## ## heading";
         let expected = "<h2>## heading</h2>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_h3() {
         let test_str = "### heading";
         let expected = "<h3>heading</h3>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
 
         let test_str = "###heading";
         let expected = "###heading";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
 
         let test_str = "### ### heading";
         let expected = "<h3>### heading</h3>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_h4() {
         let test_str = "#### heading";
         let expected = "<h4>heading</h4>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
 
         let test_str = "####heading";
         let expected = "####heading";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
 
         let test_str = "#### #### heading";
         let expected = "<h4>#### heading</h4>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_h5() {
         let test_str = "##### heading";
         let expected = "<h5>heading</h5>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
 
         let test_str = "#####heading";
         let expected = "#####heading";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
 
         let test_str = "##### ##### heading";
         let expected = "<h5>##### heading</h5>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_block_quote() {
         let test_str = "some stuff\n> b1\n> b2";
         let expected = "some stuff\n<blockquote>\n<p>b1</p>\n<p>b2</p>\n</blockquote>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_block_quote2() {
         let test_str = "> should be blockquote";
         let expected = "<blockquote>\n<p>should be blockquote</p>\n</blockquote>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_block_quote3() {
         let test_str = "some stuff\n> b1\n> b2\n\n> b3";
         let expected = "some stuff\n<blockquote>\n<p>b1</p>\n<p>b2</p>\n</blockquote>\n\n<blockquote>\n<p>b3</p>\n</blockquote>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_block_quote4() {
         let test_str = "some stuff\n> b1\n> b2  \n more stuff";
         let expected = "some stuff\n<blockquote>\n<p>b1</p>\n<p>b2</p>\n</blockquote>\n more stuff";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_failed_block_quote() {
         let test_str = ">should not be blockquote";
         let expected = ">should not be blockquote";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_multiple1() {
         let test_str = "hello world *hello world* __hello *world*__";
         let expected = "hello world <em>hello world</em> <strong>hello <em>world</em></strong>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
@@ -663,76 +674,76 @@ mod tests {
         let test_str = "hello world *hello world* __hello *world ~~world~~*__";
         let expected =
             "hello world <em>hello world</em> <strong>hello <em>world <s>world</s></em></strong>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_multiple3() {
         let test_str = "*italics* and then **bold**";
         let expected = "<em>italics</em> and then <strong>bold</strong>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_partial1() {
         let test_str = "hello world ``h`ello **world** ~hello world";
         let expected = "hello world `<pre><code class=\"language-text\">h</code></pre>ello <strong>world</strong> ~hello world";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_empty_star() {
         let test_str = "* * *test*";
         let expected = "* * <em>test</em>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_empty_double_star() {
         let test_str = "** ** **test**";
         let expected = "** ** <strong>test</strong>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_empty_underscore() {
         let test_str = "_ _ _test_";
         let expected = "_ _ <em>test</em>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_empty_double_underscore() {
         let test_str = "__ __ __test__";
         let expected = "__ __ <strong>test</strong>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_empty_backtick() {
         let test_str = "` ` `test`";
         let expected = "` ` <pre><code class=\"language-text\">test</code></pre>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_empty_triple_backtick() {
         let test_str = "``` ``` ```test```";
         let expected = "``` ``` <pre><code class=\"language-text\">test</code></pre>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_empty_strikethrough() {
         let test_str = "~~ ~~ ~~test~~";
         let expected = "~~ ~~ <s>test</s>";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 
     #[test]
     fn test_emoji1() {
         let test_str = ":)";
         let expected = "🙂";
-        assert_eq!(text_to_html(test_str).as_str(), expected);
+        assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 }
