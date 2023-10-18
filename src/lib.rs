@@ -85,6 +85,8 @@ pub fn text_to_html(text: &str) -> (String, Vec<Range<usize>>) {
 
             if matches!(tag, "language" | "code") {
                 stack.push_back(StackEntry::new(Markdown::Code, text));
+                // to get a list of indices that aren't code, can't have non-code being appended to a code segment.
+                stack.push_back(Markdown::Line.into());
             } else if let Some(to_append) = stack.back_mut() {
                 to_append.text += &text;
             } else {
@@ -181,6 +183,7 @@ pub fn text_to_html(text: &str) -> (String, Vec<Range<usize>>) {
                             stack.push_back(StackEntry::new(Markdown::Line, String::from('`')));
                         }
                         stack.push_back(StackEntry::new(Markdown::Code, code));
+                        stack.push_back(Markdown::Line.into());
                     }
                 }
                 _ => stack.push_back(Markdown::Backtick.into()),
@@ -327,8 +330,8 @@ pub fn text_to_html(text: &str) -> (String, Vec<Range<usize>>) {
     let mut indices: Vec<Range<usize>> = Vec::new();
     let mut start_idx: Option<usize> = None;
     while let Some(entry) = stack.pop_front() {
-        if start_idx.is_none() && !matches!(entry.md, Markdown::Code) {
-            start_idx.replace(builder.len().saturating_sub(1));
+        if start_idx.is_none() && !matches!(entry.md, Markdown::Code) && !entry.text.is_empty() {
+            start_idx.replace(builder.len());
         }
         match entry.md {
             Markdown::Code => {
@@ -689,7 +692,7 @@ mod tests {
         let expected = "hello world `<pre><code class=\"language-text\">h</code></pre>ello <strong>world</strong> ~hello world";
         let (transformed, indices) = text_to_html(test_str);
         assert_eq!(transformed, expected);
-        assert_eq!(indices, vec![0..13, 62..expected.len()]);
+        assert_eq!(indices, vec![0..13, 60..expected.len()]);
     }
 
     #[test]
