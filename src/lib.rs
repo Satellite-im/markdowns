@@ -313,21 +313,20 @@ pub fn text_to_html(text: &str) -> (String, Vec<Range<usize>>) {
     // extended to multiple features, such as different types of lists.
     let mut block_quote_combiner = VecDeque::<String>::new();
     let add_block_quote = |block_quote_combiner: &mut VecDeque<String>, builder: &mut String| {
-        if let Some(first) = block_quote_combiner.pop_back() {
+        if let Some(first) = block_quote_combiner.pop_front() {
             let mut block_quote_inner = format!("<p>{}</p>", first.trim());
             while let Some(next) = block_quote_combiner.pop_front() {
                 block_quote_inner += &format!("\n<p>{}</p>", next.trim())
             }
             let block_quote_entry = StackEntry::new(Markdown::BlockQuote, block_quote_inner);
-            let tmp = block_quote_entry.to_string() + builder;
-            *builder = tmp;
+            *builder += &block_quote_entry.to_string();
         }
     };
 
     // return a vec of indices that don't contain code blocks
     let mut indices: Vec<Range<usize>> = Vec::new();
     let mut start_idx: Option<usize> = None;
-    while let Some(entry) = stack.pop_back() {
+    while let Some(entry) = stack.pop_front() {
         if start_idx.is_none() && !matches!(entry.md, Markdown::Code) {
             start_idx.replace(builder.len().saturating_sub(1));
         }
@@ -336,12 +335,12 @@ pub fn text_to_html(text: &str) -> (String, Vec<Range<usize>>) {
                 if let Some(start) = start_idx.take() {
                     indices.push(start..builder.len());
                 }
-                builder = entry.to_string() + &builder;
+                builder += &entry.to_string();
             }
             Markdown::BlockQuote => block_quote_combiner.push_back(entry.text),
             _ => {
                 add_block_quote(&mut block_quote_combiner, &mut builder);
-                builder = entry.to_string() + &builder;
+                builder += &entry.to_string();
             }
         }
     }
@@ -688,7 +687,9 @@ mod tests {
     fn test_partial1() {
         let test_str = "hello world ``h`ello **world** ~hello world";
         let expected = "hello world `<pre><code class=\"language-text\">h</code></pre>ello <strong>world</strong> ~hello world";
-        assert_eq!(text_to_html(test_str).0.as_str(), expected);
+        let (transformed, indices) = text_to_html(test_str);
+        assert_eq!(transformed, expected);
+        assert_eq!(indices, vec![0..13, 62..expected.len()]);
     }
 
     #[test]
