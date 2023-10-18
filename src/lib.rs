@@ -10,6 +10,26 @@
 // for the devs - some markdown is parsed in StackEntry::to_string() - the headings and emojis
 use std::{collections::VecDeque, ops::Range};
 
+pub enum Tag {
+    Span,
+    NewLine,
+    Bold,
+    Italics,
+    Strikethrough,
+    H1,
+    H2,
+    H3,
+    H4,
+    H5,
+    BlockQuote,
+    Code(String),
+}
+
+pub struct Element {
+    tag: Tag,
+    value: String,
+}
+
 // returns the converted text and a list of indices which point to sections that aren't code blocks
 pub fn text_to_html(text: &str) -> (String, Vec<Range<usize>>) {
     let mut stack: VecDeque<StackEntry> = VecDeque::new();
