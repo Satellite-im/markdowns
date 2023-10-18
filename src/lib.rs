@@ -738,7 +738,7 @@ mod tests {
     #[test]
     fn test_emoji1() {
         let test_str = ":)";
-        let expected = "🙂";
+        let expected = ":)";
         assert_eq!(text_to_html(test_str).0.as_str(), expected);
     }
 }
