@@ -2,7 +2,6 @@
 - provides a function called `text_to_html` which parses a subset of markdown, replaces it with html tags, and returns the string. 
 handles bold, italics, strikethrough, and code. 
 - also returns a vec of ranges, each range is a substring that isn't a code segment. This allows for optional transformation of emojis.
-- provides a function to turn ascii emojis into unicode emojis. 
 
 ## Supported markdown
  - italics

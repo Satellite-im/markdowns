@@ -9,8 +9,6 @@
 ///
 // for the devs - some markdown is parsed in StackEntry::to_string() - the headings and emojis
 use std::{collections::VecDeque, ops::Range};
-mod emojis;
-pub use emojis::replace_emojis;
 
 // returns the converted text and a list of indices which point to sections that aren't code blocks
 pub fn text_to_html(text: &str) -> (String, Vec<Range<usize>>) {
