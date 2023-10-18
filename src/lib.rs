@@ -426,9 +426,7 @@ impl ToString for StackEntry {
             }
 
             let first = self.text[0..1].to_string();
-            let tmp = &self.text[1..];
-            let tmp2 = replace_emojis(tmp);
-            let second = tmp2.trim();
+            let second = &self.text[1..].trim();
 
             if first.trim().is_empty() && !second.is_empty() {
                 format!("<{tag}>{second}</{tag}>")
@@ -444,14 +442,11 @@ impl ToString for StackEntry {
             Markdown::H4 => get_heading_text("h4"),
             Markdown::H5 => get_heading_text("h5"),
             Markdown::BlockQuote => {
-                format!(
-                    "<blockquote>\n{}\n</blockquote>",
-                    replace_emojis(&self.text)
-                )
+                format!("<blockquote>\n{}\n</blockquote>", self.text)
             }
             // simplify the state machine
             Markdown::Code => self.md.to_string() + &self.text,
-            _ => self.md.to_string() + &replace_emojis(&self.text),
+            _ => self.md.to_string() + &self.text,
         }
     }
 }
