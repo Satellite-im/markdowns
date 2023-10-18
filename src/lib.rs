@@ -324,17 +324,19 @@ pub fn text_to_html(text: &str) -> (String, Vec<Range<usize>>) {
         }
     };
 
-    // todo: return a vec of indices that don't contain code blocks
+    // return a vec of indices that don't contain code blocks
     let mut indices: Vec<Range<usize>> = Vec::new();
-    let mut start_idx = 0_usize;
+    let mut start_idx: Option<usize> = None;
     while let Some(entry) = stack.pop_back() {
+        if start_idx.is_none() && !matches!(entry.md, Markdown::Code) {
+            start_idx.replace(builder.len().saturating_sub(1));
+        }
         match entry.md {
             Markdown::Code => {
-                if start_idx < builder.len() {
-                    indices.push(start_idx..builder.len());
+                if let Some(start) = start_idx.take() {
+                    indices.push(start..builder.len());
                 }
                 builder = entry.to_string() + &builder;
-                start_idx = builder.len().saturating_sub(1);
             }
             Markdown::BlockQuote => block_quote_combiner.push_back(entry.text),
             _ => {
@@ -344,6 +346,9 @@ pub fn text_to_html(text: &str) -> (String, Vec<Range<usize>>) {
         }
     }
     add_block_quote(&mut block_quote_combiner, &mut builder);
+    if let Some(start) = start_idx.take() {
+        indices.push(start..builder.len());
+    }
     (builder, indices)
 }
 
@@ -725,14 +730,18 @@ mod tests {
     fn test_empty_triple_backtick() {
         let test_str = "``` ``` ```test```";
         let expected = "``` ``` <pre><code class=\"language-text\">test</code></pre>";
-        assert_eq!(text_to_html(test_str).0.as_str(), expected);
+        let (transformed, indices) = text_to_html(test_str);
+        assert_eq!(transformed, expected);
+        assert_eq!(indices, vec![0..8]);
     }
 
     #[test]
     fn test_empty_strikethrough() {
         let test_str = "~~ ~~ ~~test~~";
         let expected = "~~ ~~ <s>test</s>";
-        assert_eq!(text_to_html(test_str).0.as_str(), expected);
+        let (transformed, indices) = text_to_html(test_str);
+        assert_eq!(transformed, expected);
+        assert_eq!(indices, vec![0..expected.len()]);
     }
 
     #[test]
