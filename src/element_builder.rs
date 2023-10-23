@@ -93,7 +93,7 @@ pub fn text_to_html2(text: &str) -> VecDeque<Element> {
                         ret_stack.push_back(Element::new(Tag::Italics, prev_text));
                     }
                 }
-                _ => stack.push_back(Markdown::Star.into()),
+                c => push_char(&mut stack, c),
             },
             _ => match char {
                 '*' => stack.push_back(Markdown::Star.into()),
