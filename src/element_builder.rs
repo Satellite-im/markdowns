@@ -80,9 +80,11 @@ pub fn text_to_html2(text: &str) -> VecDeque<Element> {
                     if prev_empty {
                         if prev_matches(&stack, Markdown::DoubleStar) {
                             let p2 = stack.pop_back().unwrap();
+                            clear_stack(&mut stack, &mut ret_stack);
                             ret_stack.push_back(Element::new(Tag::Bold, p2.text));
+                        } else {
+                             stack.push_back(Markdown::DoubleStar.into());
                         }
-                        stack.push_back(Markdown::DoubleStar.into());
                     } else {
                         clear_stack(&mut stack, &mut ret_stack);
                         ret_stack.push_back(Element::new(Tag::Italics, prev_text));
