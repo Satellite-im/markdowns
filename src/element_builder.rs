@@ -79,11 +79,14 @@ pub fn text_to_html2(text: &str) -> VecDeque<Element> {
                     stack.pop_back();
                     if prev_empty {
                         if prev_matches(&stack, Markdown::DoubleStar) {
-                            let p2 = stack.pop_back().unwrap();
-                            clear_stack(&mut stack, &mut ret_stack);
-                            ret_stack.push_back(Element::new(Tag::Bold, p2.text));
+                            if let Some(p2) = stack.pop_back() {
+                                clear_stack(&mut stack, &mut ret_stack);
+                                ret_stack.push_back(Element::new(Tag::Bold, p2.text));
+                            } else {
+                                unreachable!();
+                            }
                         } else {
-                             stack.push_back(Markdown::DoubleStar.into());
+                            stack.push_back(Markdown::DoubleStar.into());
                         }
                     } else {
                         clear_stack(&mut stack, &mut ret_stack);
@@ -100,6 +103,12 @@ pub fn text_to_html2(text: &str) -> VecDeque<Element> {
     }
     clear_stack(&mut stack, &mut ret_stack);
     ret_stack
+        .drain(..)
+        .filter(|x| match x.tag {
+            Tag::Span => !x.value.is_empty(),
+            _ => true,
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -130,6 +139,27 @@ mod test {
     fn test_plain_bold1() {
         let test = text_to_html2("abcd**bold**");
         let expected = vec_to_vecdeque(vec![(Tag::Span, "abcd"), (Tag::Bold, "bold")]);
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_bold1() {
+        let test = text_to_html2("**bold**");
+        let expected = vec_to_vecdeque(vec![(Tag::Bold, "bold")]);
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_plain_italics() {
+        let test = text_to_html2("abcd*italics*");
+        let expected = vec_to_vecdeque(vec![(Tag::Span, "abcd"), (Tag::Italics, "italics")]);
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_italics1() {
+        let test = text_to_html2("*italics*");
+        let expected = vec_to_vecdeque(vec![(Tag::Italics, "italics")]);
         assert_eq!(test, expected);
     }
 }
