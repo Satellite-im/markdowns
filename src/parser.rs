@@ -146,7 +146,17 @@ impl Parser {
                         } else {
                             unreachable!();
                         }
-                        todo!("check if p2 is triple backtick and if so, make a code block");
+                        let prev = self.builders.pop_back().unwrap();
+                        if self.prev_matches(Markdown::TripleBacktick) {
+                            let p2 = self.builders.pop_back().unwrap();
+                            let (language, text) = get_language(&p2.in_progress);
+                            let mut new_tag = Tag::from(TagType::Code(language));
+                            debug_assert!(p2.completed.is_empty());
+                            new_tag.add_text(&text);
+                            self.bubble_tag(new_tag);
+                        } else {
+                            self.builders.push_back(prev);
+                        }
                     } else {
                         let is_char = self
                             .builders
@@ -256,6 +266,31 @@ pub fn text_to_html2(text: &str) -> Tag {
         parser.process(c);
     }
     parser.finish()
+}
+
+fn get_language(text: &str) -> (String, String) {
+    let default = ("text".to_string(), text.to_string());
+    match text.find('\n') {
+        Some(x) => {
+            let before = text[0..x].to_string();
+            let after: String = text.chars().skip(x + 1).collect();
+            match before.trim() {
+                x if !x.is_empty() => (x.to_string(), after),
+                _ => default,
+            }
+        }
+        None => match text.find(' ') {
+            Some(x) => {
+                let before = text[0..x].to_string();
+                let after: String = text.chars().skip(x + 1).collect();
+                match before.trim() {
+                    x if !x.is_empty() => (x.to_string(), after),
+                    _ => default,
+                }
+            }
+            None => default,
+        },
+    }
 }
 
 #[cfg(test)]
