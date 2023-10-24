@@ -102,6 +102,9 @@ impl Parser {
     }
 
     fn push_md(&mut self, md: Markdown) {
+        if let Some(builder) = self.builders.back_mut() {
+            builder.save_progress();
+        }
         self.builders.push_back(md.into());
     }
 
