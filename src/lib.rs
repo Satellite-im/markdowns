@@ -11,6 +11,8 @@
 use std::{collections::VecDeque, ops::Range};
 
 mod md;
+mod parser;
+mod tag;
 pub mod tag_builder;
 
 // returns the converted text and a list of indices which point to sections that aren't code blocks
