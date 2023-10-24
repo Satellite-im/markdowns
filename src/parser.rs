@@ -35,9 +35,7 @@ impl Parser {
             _ => true,
         });
 
-        let mut r = std::mem::take(&mut self.root);
-        r.values = r.values.drain(..).rev().collect();
-        r
+        std::mem::take(&mut self.root)
     }
 
     pub fn process(&mut self, c: char) {
@@ -167,6 +165,18 @@ mod test {
         let test = text_to_html2("*italics*");
         let mut expected = Tag::from(TagType::Paragraph);
         expected.add_tag_w_text(TagType::Italics, "italics");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_nested_bold_italics() {
+        let test = text_to_html2("abcd**bold *italics***");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("abcd");
+        let mut bold = Tag::from(TagType::Bold);
+        bold.add_text("bold ".into());
+        bold.add_tag_w_text(TagType::Italics, "italics");
+        expected.add_tag(bold);
         assert_eq!(test, expected);
     }
 }
