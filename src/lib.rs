@@ -11,6 +11,7 @@
 use std::{collections::VecDeque, ops::Range};
 
 pub mod element_builder;
+mod md;
 
 // returns the converted text and a list of indices which point to sections that aren't code blocks
 pub fn text_to_html(text: &str) -> (String, Vec<Range<usize>>) {

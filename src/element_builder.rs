@@ -1,10 +1,23 @@
 use std::collections::VecDeque;
 
-use crate::{Markdown, StackEntry};
+use crate::md::Markdown;
+
+struct Parser {
+    // everything gets appended to root.values
+    root: Tag,
+    builders: VecDeque<TagBuilder>,
+}
+
+struct TagBuilder {
+    md: Markdown,
+    in_progress: String,
+    completed: VecDeque<Tag>,
+}
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub enum Tag {
-    Span,
+pub enum TagType {
+    // the root node
+    Paragraph,
     NewLine,
     Bold,
     Italics,
@@ -18,148 +31,94 @@ pub enum Tag {
     Code(String),
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Element {
-    tag: Tag,
-    value: String,
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub enum TagValue {
+    // probably a span
+    Text(String),
+    Tag(Tag),
 }
 
-impl Element {
-    fn new(tag: Tag, value: String) -> Self {
-        Self { tag, value }
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct Tag {
+    r#type: TagType,
+    values: VecDeque<TagValue>,
+}
+
+impl Tag {
+    pub fn add_text(&mut self, text: &str) {
+        self.values.push_back(TagValue::Text(text.into()));
+    }
+
+    pub fn add_tag(&mut self, tag: Tag) {
+        self.values.push_back(TagValue::Tag(tag));
+    }
+
+    // makes unit testing faster
+    pub fn add_tag_w_text(&mut self, tag_type: TagType, text: &str) {
+        let mut n: Tag = tag_type.into();
+        n.add_text(text.into());
+        self.add_tag(n);
     }
 }
 
-impl From<Tag> for Element {
-    fn from(tag: Tag) -> Self {
+impl From<TagType> for Tag {
+    fn from(value: TagType) -> Self {
         Self {
-            tag,
-            value: String::new(),
+            r#type: value,
+            values: Default::default(),
         }
     }
 }
 
-pub fn text_to_html2(text: &str) -> VecDeque<Element> {
-    let mut stack: VecDeque<StackEntry> = VecDeque::new();
-    stack.push_back(Markdown::Line.into());
-
-    let prev_matches = |stack: &VecDeque<StackEntry>, md: Markdown| {
-        stack.back().map(|x| x.md == md).unwrap_or_default()
-    };
-
-    let push_char = |stack: &mut VecDeque<StackEntry>, c: char| {
-        if let Some(entry) = stack.back_mut() {
-            entry.text.push(c);
-        } else {
-            // should never happen
-            stack.push_back(StackEntry::new(Markdown::Line, String::from(c)));
-        }
-    };
-
-    let clear_stack = |stack: &mut VecDeque<StackEntry>, ret_stack: &mut VecDeque<Element>| {
-        for stack_entry in stack.drain(..) {
-            match stack_entry.md {
-                Markdown::Line => ret_stack.push_back(Element::new(Tag::Span, stack_entry.text)),
-                _ => todo!(),
-            }
-        }
-    };
-
-    let mut ret_stack: VecDeque<Element> = VecDeque::new();
-    for char in text.chars() {
-        let (prev_md, prev_text) = stack
-            .back()
-            .map(|x| (x.md.clone(), x.text.clone()))
-            .expect("stack should not be empty");
-        let prev_empty = prev_text.is_empty();
-
-        match prev_md {
-            Markdown::Star => match char {
-                '*' => {
-                    stack.pop_back();
-                    if prev_empty {
-                        if prev_matches(&stack, Markdown::DoubleStar) {
-                            if let Some(p2) = stack.pop_back() {
-                                clear_stack(&mut stack, &mut ret_stack);
-                                ret_stack.push_back(Element::new(Tag::Bold, p2.text));
-                            } else {
-                                unreachable!();
-                            }
-                        } else {
-                            stack.push_back(Markdown::DoubleStar.into());
-                        }
-                    } else {
-                        clear_stack(&mut stack, &mut ret_stack);
-                        ret_stack.push_back(Element::new(Tag::Italics, prev_text));
-                    }
-                }
-                c => push_char(&mut stack, c),
-            },
-            _ => match char {
-                '*' => stack.push_back(Markdown::Star.into()),
-                _ => push_char(&mut stack, char),
-            },
-        }
-    }
-    clear_stack(&mut stack, &mut ret_stack);
-    ret_stack
-        .drain(..)
-        .filter(|x| match x.tag {
-            Tag::Span => !x.value.is_empty(),
-            _ => true,
-        })
-        .collect()
+pub fn text_to_html2(text: &str) -> Tag {
+    todo!()
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
 
-    fn element_to_vecdeque(tag: Tag, value: &str) -> VecDeque<Element> {
-        let mut m = VecDeque::new();
-        m.push_back(Element::new(tag, value.into()));
-        m
-    }
-
-    fn vec_to_vecdeque(mut v: Vec<(Tag, &str)>) -> VecDeque<Element> {
-        VecDeque::from_iter(
-            v.drain(..)
-                .map(|(tag, value)| Element::new(tag, value.into())),
-        )
-    }
-
     #[test]
     fn test_plain_test() {
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("abcd");
+
         let test = text_to_html2("abcd");
-        let expected = element_to_vecdeque(Tag::Span, "abcd");
         assert_eq!(test, expected);
     }
 
     #[test]
     fn test_plain_bold1() {
         let test = text_to_html2("abcd**bold**");
-        let expected = vec_to_vecdeque(vec![(Tag::Span, "abcd"), (Tag::Bold, "bold")]);
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("abcd");
+        expected.add_tag_w_text(TagType::Bold, "bold");
+
         assert_eq!(test, expected);
     }
 
     #[test]
     fn test_bold1() {
         let test = text_to_html2("**bold**");
-        let expected = vec_to_vecdeque(vec![(Tag::Bold, "bold")]);
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::Bold, "bold");
         assert_eq!(test, expected);
     }
 
     #[test]
     fn test_plain_italics() {
         let test = text_to_html2("abcd*italics*");
-        let expected = vec_to_vecdeque(vec![(Tag::Span, "abcd"), (Tag::Italics, "italics")]);
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("abcd");
+        expected.add_tag_w_text(TagType::Italics, "italics");
         assert_eq!(test, expected);
     }
 
     #[test]
     fn test_italics1() {
         let test = text_to_html2("*italics*");
-        let expected = vec_to_vecdeque(vec![(Tag::Italics, "italics")]);
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::Italics, "italics");
         assert_eq!(test, expected);
     }
 }
