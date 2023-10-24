@@ -57,6 +57,17 @@ impl Parser {
             .unwrap(); // this never fails per the previous statement.
 
         match prev_md {
+            Markdown::Backslash => match c {
+                '*' | '_' | '`' => {
+                    self.builders.pop_back();
+                    self.push_char(c);
+                }
+                _ => {
+                    self.builders.pop_back();
+                    self.push_char('\\');
+                    self.push_char(c);
+                }
+            },
             Markdown::Star => match c {
                 '*' => {
                     let prev = self.builders.pop_back().unwrap();
@@ -169,6 +180,7 @@ impl Parser {
                     let new_tag = Tag::from(TagType::NewLine);
                     self.root.add_tag(new_tag);
                 }
+                '\\' => self.push_md(Markdown::Backslash),
                 '*' => self.push_md(Markdown::Star),
                 '_' => self.push_md(Markdown::Underscore),
                 '`' => self.push_md(Markdown::Backtick),
