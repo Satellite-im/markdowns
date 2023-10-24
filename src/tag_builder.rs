@@ -31,7 +31,9 @@ impl Parser {
             _ => true,
         });
 
-        std::mem::take(&mut self.root)
+        let mut r = std::mem::take(&mut self.root);
+        r.values = r.values.drain(..).rev().collect();
+        r
     }
 
     pub fn process(&mut self, c: char) {
@@ -39,13 +41,12 @@ impl Parser {
             self.builders.push_back(Default::default());
         }
 
-        let (prev_md, in_progress, prev_empty) = self
+        let (prev_md, prev_empty) = self
             .builders
             .back()
             .map(|x| {
                 (
                     x.md.clone(),
-                    x.in_progress.clone(),
                     x.in_progress.is_empty() && x.completed.is_empty(),
                 )
             })
