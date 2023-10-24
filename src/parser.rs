@@ -78,8 +78,32 @@ impl Parser {
                 }
                 _ => self.push_char(c),
             },
+            Markdown::Underscore => match c {
+                '_' => {
+                    let prev = self.builders.pop_back().unwrap();
+                    if prev_empty {
+                        // this is the 2nd prev (at least it was before the pop_back())
+                        if self.prev_matches(Markdown::DoubleUnderscore) {
+                            let p2 = self.builders.pop_back().unwrap();
+                            let mut new_tag = Tag::from(TagType::Bold);
+                            new_tag.add_tag_values(p2.completed);
+                            new_tag.add_text(&p2.in_progress);
+                            self.bubble_tag(new_tag);
+                        } else {
+                            self.push_md(Markdown::DoubleUnderscore);
+                        }
+                    } else {
+                        let mut new_tag = Tag::from(TagType::Italics);
+                        new_tag.add_tag_values(prev.completed);
+                        new_tag.add_text(&prev.in_progress);
+                        self.bubble_tag(new_tag);
+                    }
+                }
+                _ => self.push_char(c),
+            },
             _ => match c {
                 '*' => self.push_md(Markdown::Star),
+                '_' => self.push_md(Markdown::Underscore),
                 _ => self.push_char(c),
             },
         }
@@ -147,8 +171,48 @@ mod test {
     }
 
     #[test]
+    fn test_plain_bold2() {
+        let test = text_to_html2("abcd__bold__");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("abcd");
+        expected.add_tag_w_text(TagType::Bold, "bold");
+
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_partial_bold1() {
+        let test = text_to_html2("abcd**bold");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("abcd");
+        expected.add_text("**");
+        expected.add_text("bold");
+
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_partial_bold2() {
+        let test = text_to_html2("abcd__bold");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("abcd");
+        expected.add_text("__");
+        expected.add_text("bold");
+
+        assert_eq!(test, expected);
+    }
+
+    #[test]
     fn test_bold1() {
         let test = text_to_html2("**bold**");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::Bold, "bold");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_bold2() {
+        let test = text_to_html2("__bold__");
         let mut expected = Tag::from(TagType::Paragraph);
         expected.add_tag_w_text(TagType::Bold, "bold");
         assert_eq!(test, expected);
@@ -172,8 +236,20 @@ mod test {
     }
 
     #[test]
-    fn test_nested_bold_italics() {
+    fn test_nested_bold_italics1() {
         let test = text_to_html2("abcd**bold *italics***");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("abcd");
+        let mut bold = Tag::from(TagType::Bold);
+        bold.add_text("bold ".into());
+        bold.add_tag_w_text(TagType::Italics, "italics");
+        expected.add_tag(bold);
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_nested_bold_italics2() {
+        let test = text_to_html2("abcd__bold *italics*__");
         let mut expected = Tag::from(TagType::Paragraph);
         expected.add_text("abcd");
         let mut bold = Tag::from(TagType::Bold);
