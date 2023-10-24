@@ -58,7 +58,7 @@ impl Parser {
 
         match prev_md {
             Markdown::Backslash => match c {
-                '*' | '_' | '`' => {
+                '`' => {
                     self.builders.pop_back();
                     self.push_char(c);
                 }
@@ -122,7 +122,18 @@ impl Parser {
                         self.push_char('`');
                         self.push_md(Markdown::TripleBacktick);
                     } else {
-                        self.push_md(Markdown::Backtick);
+                        let is_char = self
+                            .builders
+                            .back()
+                            .as_ref()
+                            .and_then(|x| x.in_progress.chars().last())
+                            .map(|c| c == '\\')
+                            .unwrap_or_default();
+                        if is_char {
+                            self.push_char(c);
+                        } else {
+                            self.push_md(Markdown::Backtick);
+                        }
                     }
                 }
                 _ => self.push_char(c),
@@ -137,13 +148,24 @@ impl Parser {
                         }
                         todo!("check if p2 is triple backtick and if so, make a code block");
                     } else {
-                        // double backticks, some text, then another backtick
-                        let prev = self.builders.pop_back().unwrap();
-                        self.push_char('`');
-                        let mut new_tag = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
-                        debug_assert!(prev.completed.is_empty());
-                        new_tag.add_text(&prev.in_progress);
-                        self.bubble_tag(new_tag);
+                        let is_char = self
+                            .builders
+                            .back()
+                            .as_ref()
+                            .and_then(|x| x.in_progress.chars().last())
+                            .map(|c| c == '\\')
+                            .unwrap_or_default();
+                        if is_char {
+                            self.push_char(c);
+                        } else {
+                            // double backticks, some text, then another backtick
+                            let prev = self.builders.pop_back().unwrap();
+                            self.push_char('`');
+                            let mut new_tag = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
+                            debug_assert!(prev.completed.is_empty());
+                            new_tag.add_text(&prev.in_progress);
+                            self.bubble_tag(new_tag);
+                        }
                     }
                 }
                 _ => self.push_char(c),
@@ -157,12 +179,23 @@ impl Parser {
                             unreachable!();
                         }
                     } else {
-                        let prev = self.builders.pop_back().unwrap();
-                        let mut new_tag = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
-                        // prev.completed should be empty
-                        debug_assert!(prev.completed.is_empty());
-                        new_tag.add_text(&prev.in_progress);
-                        self.bubble_tag(new_tag);
+                        let is_char = self
+                            .builders
+                            .back()
+                            .as_ref()
+                            .and_then(|x| x.in_progress.chars().last())
+                            .map(|c| c == '\\')
+                            .unwrap_or_default();
+                        if is_char {
+                            self.push_char(c);
+                        } else {
+                            let prev = self.builders.pop_back().unwrap();
+                            let mut new_tag = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
+                            // prev.completed should be empty
+                            debug_assert!(prev.completed.is_empty());
+                            new_tag.add_text(&prev.in_progress);
+                            self.bubble_tag(new_tag);
+                        }
                     }
                 }
                 _ => self.push_char(c),
