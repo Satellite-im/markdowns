@@ -6,6 +6,8 @@ use crate::{
     tag_builder::TagBuilder,
 };
 
+const LANGUAGE_TEXT: &str = "text";
+
 pub struct Parser {
     // everything gets appended to root.values
     root: Tag,
@@ -101,9 +103,75 @@ impl Parser {
                 }
                 _ => self.push_char(c),
             },
+            Markdown::TripleBacktick => match c {
+                '`' => {
+                    // 4 backticks in a row
+                    if prev_empty {
+                        self.builders.pop_back();
+                        self.push_char('`');
+                        self.push_md(Markdown::TripleBacktick);
+                    } else {
+                        self.push_md(Markdown::Backtick);
+                    }
+                }
+                _ => self.push_char(c),
+            },
+            Markdown::DoubleBacktick => match c {
+                '`' => {
+                    if prev_empty {
+                        if let Some(prev) = self.builders.back_mut() {
+                            prev.md = Markdown::TripleBacktick;
+                        } else {
+                            unreachable!();
+                        }
+                        todo!("check if p2 is triple backtick and if so, make a code block");
+                    } else {
+                        // double backticks, some text, then another backtick
+                        let prev = self.builders.pop_back().unwrap();
+                        self.push_char('`');
+                        let mut new_tag = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
+                        debug_assert!(prev.completed.is_empty());
+                        new_tag.add_text(&prev.in_progress);
+                        self.bubble_tag(new_tag);
+                    }
+                }
+                _ => self.push_char(c),
+            },
+            Markdown::Backtick if c != '\n' => match c {
+                '`' => {
+                    if prev_empty {
+                        if let Some(prev) = self.builders.back_mut() {
+                            prev.md = Markdown::DoubleBacktick;
+                        } else {
+                            unreachable!();
+                        }
+                    } else {
+                        let prev = self.builders.pop_back().unwrap();
+                        let mut new_tag = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
+                        // prev.completed should be empty
+                        debug_assert!(prev.completed.is_empty());
+                        new_tag.add_text(&prev.in_progress);
+                        self.bubble_tag(new_tag);
+                    }
+                }
+                _ => self.push_char(c),
+            },
             _ => match c {
+                '\n' => {
+                    while let Some(mut builder) = self.builders.pop_back() {
+                        let mut values = builder.to_values();
+                        if let Some(prev) = self.builders.back_mut() {
+                            prev.completed.append(&mut values);
+                        } else {
+                            self.root.values.append(&mut values);
+                        }
+                    }
+                    let new_tag = Tag::from(TagType::NewLine);
+                    self.root.add_tag(new_tag);
+                }
                 '*' => self.push_md(Markdown::Star),
                 '_' => self.push_md(Markdown::Underscore),
+                '`' => self.push_md(Markdown::Backtick),
                 _ => self.push_char(c),
             },
         }
