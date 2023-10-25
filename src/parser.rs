@@ -57,17 +57,6 @@ impl Parser {
             .unwrap(); // this never fails per the previous statement.
 
         match prev_md {
-            Markdown::Backslash => match c {
-                '`' => {
-                    self.builders.pop_back();
-                    self.push_char(c);
-                }
-                _ => {
-                    self.builders.pop_back();
-                    self.push_char('\\');
-                    self.push_char(c);
-                }
-            },
             Markdown::Star => match c {
                 '*' => {
                     let prev = self.builders.pop_back().unwrap();
@@ -122,14 +111,7 @@ impl Parser {
                         self.push_char('`');
                         self.push_md(Markdown::TripleBacktick);
                     } else {
-                        let is_char = self
-                            .builders
-                            .back()
-                            .as_ref()
-                            .and_then(|x| x.in_progress.chars().last())
-                            .map(|c| c == '\\')
-                            .unwrap_or_default();
-                        if is_char {
+                        if self.is_prev_backslash() {
                             self.push_char(c);
                         } else {
                             self.push_md(Markdown::Backtick);
@@ -158,14 +140,7 @@ impl Parser {
                             self.builders.push_back(prev);
                         }
                     } else {
-                        let is_char = self
-                            .builders
-                            .back()
-                            .as_ref()
-                            .and_then(|x| x.in_progress.chars().last())
-                            .map(|c| c == '\\')
-                            .unwrap_or_default();
-                        if is_char {
+                        if self.is_prev_backslash() {
                             self.push_char(c);
                         } else {
                             // double backticks, some text, then another backtick
@@ -189,14 +164,7 @@ impl Parser {
                             unreachable!();
                         }
                     } else {
-                        let is_char = self
-                            .builders
-                            .back()
-                            .as_ref()
-                            .and_then(|x| x.in_progress.chars().last())
-                            .map(|c| c == '\\')
-                            .unwrap_or_default();
-                        if is_char {
+                        if self.is_prev_backslash() {
                             self.push_char(c);
                         } else {
                             let prev = self.builders.pop_back().unwrap();
@@ -223,10 +191,9 @@ impl Parser {
                     let new_tag = Tag::from(TagType::NewLine);
                     self.root.add_tag(new_tag);
                 }
-                '\\' => self.push_md(Markdown::Backslash),
                 '*' => self.push_md(Markdown::Star),
                 '_' => self.push_md(Markdown::Underscore),
-                '`' => self.push_md(Markdown::Backtick),
+                '`' if !self.is_prev_backslash() => self.push_md(Markdown::Backtick),
                 _ => self.push_char(c),
             },
         }
@@ -257,6 +224,15 @@ impl Parser {
 
     fn prev_matches(&self, md: Markdown) -> bool {
         self.builders.back().map(|x| x.md == md).unwrap_or_default()
+    }
+
+    fn is_prev_backslash(&self) -> bool {
+        self.builders
+            .back()
+            .as_ref()
+            .and_then(|x| x.in_progress.chars().last())
+            .map(|c| c == '\\')
+            .unwrap_or_default()
     }
 }
 

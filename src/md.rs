@@ -11,8 +11,6 @@ pub enum Markdown {
     Underscore,
     // bold
     DoubleUnderscore,
-    // escaping
-    Backslash,
     // code
     Backtick,
     // nothing
@@ -48,7 +46,6 @@ impl ToString for Markdown {
             Markdown::Underscore => String::from("_"),
             Markdown::DoubleUnderscore => String::from("__"),
             Markdown::Backtick => String::from("`"),
-            Markdown::Backslash => String::from("\\"),
             Markdown::DoubleBacktick => String::from("``"),
             Markdown::TripleBacktick => String::from("```"),
             Markdown::Tilde => String::from("~"),
