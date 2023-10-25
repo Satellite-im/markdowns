@@ -24,11 +24,18 @@ impl Parser {
 
     pub fn finish(&mut self) -> Tag {
         while let Some(mut builder) = self.builders.pop_back() {
-            let mut values = builder.to_values();
-            if let Some(prev) = self.builders.back_mut() {
-                prev.completed.append(&mut values);
+            if matches!(builder.md, Markdown::BlockQuote) {
+                let mut tag = Tag::from(TagType::BlockQuote);
+                tag.values.append(&mut builder.completed);
+                tag.add_text(&builder.in_progress);
+                self.bubble_tag(tag);
             } else {
-                self.root.values.append(&mut values);
+                let mut values = builder.to_values();
+                if let Some(prev) = self.builders.back_mut() {
+                    prev.completed.append(&mut values);
+                } else {
+                    self.root.values.append(&mut values);
+                }
             }
         }
 
@@ -174,11 +181,18 @@ impl Parser {
             _ => match c {
                 '\n' => {
                     while let Some(mut builder) = self.builders.pop_back() {
-                        let mut values = builder.to_values();
-                        if let Some(prev) = self.builders.back_mut() {
-                            prev.completed.append(&mut values);
+                        if matches!(builder.md, Markdown::BlockQuote) {
+                            let mut tag = Tag::from(TagType::BlockQuote);
+                            tag.values.append(&mut builder.completed);
+                            tag.add_text(&builder.in_progress);
+                            self.bubble_tag(tag);
                         } else {
-                            self.root.values.append(&mut values);
+                            let mut values = builder.to_values();
+                            if let Some(prev) = self.builders.back_mut() {
+                                prev.completed.append(&mut values);
+                            } else {
+                                self.root.values.append(&mut values);
+                            }
                         }
                     }
                     let new_tag = Tag::from(TagType::NewLine);
