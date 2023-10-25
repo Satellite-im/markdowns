@@ -196,6 +196,16 @@ impl Parser {
                         unreachable!();
                     }
                 }
+                '~' => self.push_md(Markdown::Tilde),
+                '#' => self.push_md(Markdown::H1),
+                ' ' if self.is_start_of_blockquote() => {
+                    if let Some(prev) = self.builders.back_mut() {
+                        prev.in_progress.pop();
+                    } else {
+                        unreachable!();
+                    }
+                    self.push_md(Markdown::BlockQuote);
+                }
                 _ => self.push_char(c),
             },
         }
@@ -235,6 +245,18 @@ impl Parser {
             .and_then(|x| x.in_progress.chars().last())
             .map(|c| c == '\\')
             .unwrap_or_default()
+    }
+
+    fn is_start_of_blockquote(&self) -> bool {
+        match self.builders.back() {
+            None => false,
+            Some(t) => match t.md {
+                Markdown::NewLine | Markdown::Line => {
+                    t.completed.is_empty() && t.in_progress == ">"
+                }
+                _ => false,
+            },
+        }
     }
 
     fn get_text_from_code_block(&mut self) -> String {
@@ -445,6 +467,14 @@ mod test {
         let test = text_to_html2("```rust\n hello\n world```");
         let mut expected = Tag::from(TagType::Paragraph);
         expected.add_tag_w_text(TagType::Code("rust".into()), " hello\n world");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_blockquote1() {
+        let test = text_to_html2("> some blockquote");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::BlockQuote, "some blockquote".into());
         assert_eq!(test, expected);
     }
 }

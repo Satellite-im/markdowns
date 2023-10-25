@@ -32,7 +32,6 @@ pub enum Markdown {
     // 5x octothorpe
     H5,
     // block quote
-    GreaterThan,
     BlockQuote,
 }
 
@@ -55,7 +54,6 @@ impl ToString for Markdown {
             Markdown::H3 => String::from("###"),
             Markdown::H4 => String::from("####"),
             Markdown::H5 => String::from("#####"),
-            Markdown::GreaterThan => String::from(">"),
         }
     }
 }
