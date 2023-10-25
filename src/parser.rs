@@ -54,29 +54,31 @@ impl Parser {
             .unwrap(); // this never fails per the previous statement.
 
         match prev_md {
-            Markdown::Star => match c {
-                '*' => {
-                    let prev = self.builders.pop_back().unwrap();
-                    if prev_empty {
-                        // this is the 2nd prev (at least it was before the pop_back())
-                        if self.prev_matches(Markdown::DoubleStar) {
-                            let p2 = self.builders.pop_back().unwrap();
-                            let mut new_tag = Tag::from(TagType::Bold);
-                            new_tag.append_values(p2.completed);
-                            new_tag.add_text(&p2.in_progress);
-                            self.bubble_tag(new_tag);
-                        } else {
-                            self.push_md(Markdown::DoubleStar);
-                        }
-                    } else {
-                        let mut new_tag = Tag::from(TagType::Italics);
-                        new_tag.append_values(prev.completed);
-                        new_tag.add_text(&prev.in_progress);
+            Markdown::Star if c == '*' => {
+                let prev = self.builders.pop_back().unwrap();
+                if prev_empty {
+                    // this is the 2nd prev (at least it was before the pop_back())
+                    if self.prev_matches(Markdown::DoubleStar) {
+                        let p2 = self.builders.pop_back().unwrap();
+                        let mut new_tag = Tag::from(TagType::Bold);
+                        new_tag.append_values(p2.completed);
+                        new_tag.add_text(&p2.in_progress);
                         self.bubble_tag(new_tag);
+                    } else {
+                        self.push_md(Markdown::DoubleStar);
                     }
+                } else {
+                    let mut new_tag = Tag::from(TagType::Italics);
+                    new_tag.append_values(prev.completed);
+                    new_tag.add_text(&prev.in_progress);
+                    self.bubble_tag(new_tag);
                 }
-                _ => self.push_char(c),
-            },
+            }
+            Markdown::Star if prev_empty && c.is_whitespace() && c != '\n' => {
+                self.builders.pop_back();
+                self.push_char('*');
+                self.push_char(c);
+            }
             Markdown::DoubleStar if c == '*' => {
                 // triple star - means nothing.
                 if prev_empty {
@@ -87,29 +89,37 @@ impl Parser {
                     self.push_md(Markdown::Star);
                 }
             }
-            Markdown::Underscore => match c {
-                '_' => {
-                    let prev = self.builders.pop_back().unwrap();
-                    if prev_empty {
-                        // this is the 2nd prev (at least it was before the pop_back())
-                        if self.prev_matches(Markdown::DoubleUnderscore) {
-                            let p2 = self.builders.pop_back().unwrap();
-                            let mut new_tag = Tag::from(TagType::Bold);
-                            new_tag.append_values(p2.completed);
-                            new_tag.add_text(&p2.in_progress);
-                            self.bubble_tag(new_tag);
-                        } else {
-                            self.push_md(Markdown::DoubleUnderscore);
-                        }
-                    } else {
-                        let mut new_tag = Tag::from(TagType::Italics);
-                        new_tag.append_values(prev.completed);
-                        new_tag.add_text(&prev.in_progress);
+            Markdown::DoubleStar if prev_empty && c.is_whitespace() && c != '\n' => {
+                self.builders.pop_back();
+                self.push_char('*');
+                self.push_char('*');
+                self.push_char(c);
+            }
+            Markdown::Underscore if c == '_' => {
+                let prev = self.builders.pop_back().unwrap();
+                if prev_empty {
+                    // this is the 2nd prev (at least it was before the pop_back())
+                    if self.prev_matches(Markdown::DoubleUnderscore) {
+                        let p2 = self.builders.pop_back().unwrap();
+                        let mut new_tag = Tag::from(TagType::Bold);
+                        new_tag.append_values(p2.completed);
+                        new_tag.add_text(&p2.in_progress);
                         self.bubble_tag(new_tag);
+                    } else {
+                        self.push_md(Markdown::DoubleUnderscore);
                     }
+                } else {
+                    let mut new_tag = Tag::from(TagType::Italics);
+                    new_tag.append_values(prev.completed);
+                    new_tag.add_text(&prev.in_progress);
+                    self.bubble_tag(new_tag);
                 }
-                _ => self.push_char(c),
-            },
+            }
+            Markdown::Underscore if prev_empty && c.is_whitespace() && c != '\n' => {
+                self.builders.pop_back();
+                self.push_char('_');
+                self.push_char(c);
+            }
             Markdown::DoubleUnderscore if c == '_' => {
                 // triple underscore - means nothing.
                 if prev_empty {
@@ -119,6 +129,12 @@ impl Parser {
                 } else {
                     self.push_md(Markdown::Underscore);
                 }
+            }
+            Markdown::DoubleUnderscore if prev_empty && c.is_whitespace() && c != '\n' => {
+                self.builders.pop_back();
+                self.push_char('_');
+                self.push_char('_');
+                self.push_char(c);
             }
             Markdown::TripleBacktick => match c {
                 '`' => {
@@ -135,38 +151,35 @@ impl Parser {
                 }
                 _ => self.push_char(c),
             },
-            Markdown::DoubleBacktick => match c {
-                '`' => {
-                    if prev_empty {
-                        if let Some(prev) = self.builders.back_mut() {
-                            prev.md = Markdown::TripleBacktick;
-                        } else {
-                            unreachable!();
-                        }
-                        let prev = self.builders.pop_back().unwrap();
-                        if self.prev_matches(Markdown::TripleBacktick) {
-                            let text = self.get_text_from_code_block();
-                            let (language, text) = get_language(&text);
-                            let mut new_tag = Tag::from(TagType::Code(language));
-                            new_tag.add_text(&text);
-                            self.bubble_tag(new_tag);
-                        } else {
-                            self.builders.push_back(prev);
-                        }
-                    } else if self.is_prev_backslash() {
-                        self.push_char(c);
+            Markdown::DoubleBacktick if c == '`' => {
+                if prev_empty {
+                    if let Some(prev) = self.builders.back_mut() {
+                        prev.md = Markdown::TripleBacktick;
                     } else {
-                        // double backticks, some text, then another backtick
-                        let prev = self.builders.pop_back().unwrap();
-                        self.push_char('`');
-                        let mut new_tag = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
-                        debug_assert!(prev.completed.is_empty());
-                        new_tag.add_text(&prev.in_progress);
-                        self.bubble_tag(new_tag);
+                        unreachable!();
                     }
+                    let prev = self.builders.pop_back().unwrap();
+                    if self.prev_matches(Markdown::TripleBacktick) {
+                        let text = self.get_text_from_code_block();
+                        let (language, text) = get_language(&text);
+                        let mut new_tag = Tag::from(TagType::Code(language));
+                        new_tag.add_text(&text);
+                        self.bubble_tag(new_tag);
+                    } else {
+                        self.builders.push_back(prev);
+                    }
+                } else if self.is_prev_backslash() {
+                    self.push_char(c);
+                } else {
+                    // double backticks, some text, then another backtick
+                    let prev = self.builders.pop_back().unwrap();
+                    self.push_char('`');
+                    let mut new_tag = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
+                    debug_assert!(prev.completed.is_empty());
+                    new_tag.add_text(&prev.in_progress);
+                    self.bubble_tag(new_tag);
                 }
-                _ => self.push_char(c),
-            },
+            }
             Markdown::Backtick if c != '\n' => match c {
                 '`' => {
                     if prev_empty {
@@ -188,21 +201,24 @@ impl Parser {
                 }
                 _ => self.push_char(c),
             },
-            Markdown::Tilde => match c {
-                '~' => {
-                    if prev_empty {
-                        if let Some(prev) = self.builders.back_mut() {
-                            prev.md = Markdown::DoubleTilde;
-                        } else {
-                            unreachable!();
-                        }
-                        // todo: check if p2 is double tilde and if so, make strikethrough
+            Markdown::Tilde if c == '~' => {
+                if prev_empty {
+                    if let Some(prev) = self.builders.back_mut() {
+                        prev.md = Markdown::DoubleTilde;
                     } else {
-                        // todo: turn prev tilde into a regular character and push a new markdown
+                        unreachable!();
                     }
+                    // todo: check if p2 is double tilde and if so, make strikethrough
+                } else {
+                    // todo: turn prev tilde into a regular character and push a new markdown
+                    todo!();
                 }
-                _ => self.push_char(c),
-            },
+            }
+            Markdown::Tilde if prev_empty && c.is_whitespace() && c != '\n' => {
+                self.builders.pop_back();
+                self.push_char('~');
+                self.push_char(c);
+            }
             _ => match c {
                 '\n' => {
                     while let Some(builder) = self.builders.pop_back() {
@@ -276,7 +292,7 @@ impl Parser {
                 self.bubble_tag(tag);
             }
             _ => {
-                let mut values = builder.to_values();
+                let values = builder.to_values();
                 if let Some(prev) = self.builders.back_mut() {
                     prev.append_values(values);
                 } else {
@@ -311,6 +327,15 @@ impl Parser {
             .as_ref()
             .and_then(|x| x.in_progress.chars().last())
             .map(|c| c == '\\')
+            .unwrap_or_default()
+    }
+
+    fn is_prev_space(&self) -> bool {
+        self.builders
+            .back()
+            .as_ref()
+            .and_then(|x| x.in_progress.chars().last())
+            .map(|c| c.is_whitespace())
             .unwrap_or_default()
     }
 
@@ -472,6 +497,14 @@ mod test {
         let test = text_to_html2("__bold__");
         let mut expected = Tag::from(TagType::Paragraph);
         expected.add_tag_w_text(TagType::Bold, "bold");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_bold3() {
+        let test = text_to_html2("** bold**");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("** bold**");
         assert_eq!(test, expected);
     }
 
