@@ -410,4 +410,12 @@ mod test {
         expected.add_tag_w_text(TagType::Code(LANGUAGE_TEXT.into()), "hello world");
         assert_eq!(test, expected);
     }
+
+    #[test]
+    fn test_code4() {
+        let test = text_to_html2(r"```rust hello world```");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::Code("rust".into()), "hello world");
+        assert_eq!(test, expected);
+    }
 }
