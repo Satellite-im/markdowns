@@ -20,7 +20,7 @@ impl TagBuilder {
     }
 
     pub fn save_progress(&mut self) {
-        if !self.in_progress.is_empty()  {
+        if !self.in_progress.is_empty() {
             let p = std::mem::take(&mut self.in_progress);
             self.completed.push_back(TagValue::Text(p));
         }

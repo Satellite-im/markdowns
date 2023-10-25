@@ -23,20 +23,8 @@ impl Parser {
     }
 
     pub fn finish(&mut self) -> Tag {
-        while let Some(mut builder) = self.builders.pop_back() {
-            if matches!(builder.md, Markdown::BlockQuote) {
-                let mut tag = Tag::from(TagType::BlockQuote);
-                tag.values.append(&mut builder.completed);
-                tag.add_text(&builder.in_progress);
-                self.bubble_tag(tag);
-            } else {
-                let mut values = builder.to_values();
-                if let Some(prev) = self.builders.back_mut() {
-                    prev.completed.append(&mut values);
-                } else {
-                    self.root.values.append(&mut values);
-                }
-            }
+        while let Some(builder) = self.builders.pop_back() {
+            self.handle_builder(builder);
         }
 
         self.root.values.retain(|x| match x {
@@ -180,22 +168,25 @@ impl Parser {
                 }
                 _ => self.push_char(c),
             },
+            Markdown::Tilde => match c {
+                '~' => {
+                    if prev_empty {
+                        if let Some(prev) = self.builders.back_mut() {
+                            prev.md = Markdown::DoubleTilde;
+                        } else {
+                            unreachable!();
+                        }
+                        // todo: check if p2 is double tilde and if so, make strikethrough
+                    } else {
+                        // todo: turn prev tilde into a regular character and push a new markdown
+                    }
+                }
+                _ => self.push_char(c),
+            },
             _ => match c {
                 '\n' => {
-                    while let Some(mut builder) = self.builders.pop_back() {
-                        if matches!(builder.md, Markdown::BlockQuote) {
-                            let mut tag = Tag::from(TagType::BlockQuote);
-                            tag.values.append(&mut builder.completed);
-                            tag.add_text(&builder.in_progress);
-                            self.bubble_tag(tag);
-                        } else {
-                            let mut values = builder.to_values();
-                            if let Some(prev) = self.builders.back_mut() {
-                                prev.completed.append(&mut values);
-                            } else {
-                                self.root.values.append(&mut values);
-                            }
-                        }
+                    while let Some(builder) = self.builders.pop_back() {
+                        self.handle_builder(builder);
                     }
                     let new_tag = Tag::from(TagType::NewLine);
                     self.root.add_tag(new_tag);
@@ -213,7 +204,6 @@ impl Parser {
                     }
                 }
                 '~' => self.push_md(Markdown::Tilde),
-                '#' => self.push_md(Markdown::H1),
                 ' ' if self.is_start_of_blockquote() => {
                     if let Some(prev) = self.builders.back_mut() {
                         prev.in_progress.pop();
@@ -221,6 +211,14 @@ impl Parser {
                         unreachable!();
                     }
                     self.push_md(Markdown::BlockQuote);
+                }
+                ' ' => {
+                    if let Some(md) = self.try_get_header_md() {
+                        self.builders.pop_back();
+                        self.push_md(md);
+                    } else {
+                        self.push_char(c);
+                    }
                 }
                 _ => self.push_char(c),
             },
@@ -232,6 +230,39 @@ impl Parser {
             builder.completed.push_back(TagValue::Tag(tag));
         } else {
             self.root.add_tag(tag);
+        }
+    }
+
+    fn handle_builder(&mut self, mut builder: TagBuilder) {
+        match builder.md {
+            Markdown::BlockQuote => {
+                let mut tag = Tag::from(TagType::BlockQuote);
+                tag.values.append(&mut builder.completed);
+                tag.add_text(&builder.in_progress);
+                self.bubble_tag(tag);
+            }
+            Markdown::H1 | Markdown::H2 | Markdown::H3 | Markdown::H4 | Markdown::H5 => {
+                let tag_type = match builder.md {
+                    Markdown::H1 => TagType::H1,
+                    Markdown::H2 => TagType::H2,
+                    Markdown::H3 => TagType::H3,
+                    Markdown::H4 => TagType::H4,
+                    Markdown::H5 => TagType::H5,
+                    _ => unreachable!(),
+                };
+                let mut tag = Tag::from(tag_type);
+                tag.values.append(&mut builder.completed);
+                tag.add_text(&builder.in_progress);
+                self.bubble_tag(tag);
+            }
+            _ => {
+                let mut values = builder.to_values();
+                if let Some(prev) = self.builders.back_mut() {
+                    prev.completed.append(&mut values);
+                } else {
+                    self.root.values.append(&mut values);
+                }
+            }
         }
     }
 
@@ -287,6 +318,23 @@ impl Parser {
                 }
             })
             .unwrap_or_default()
+    }
+
+    fn try_get_header_md(&mut self) -> Option<Markdown> {
+        self.builders.back().and_then(|builder| {
+            if !builder.completed.is_empty() {
+                None
+            } else {
+                match builder.in_progress.as_str() {
+                    "#" => Some(Markdown::H1),
+                    "##" => Some(Markdown::H2),
+                    "###" => Some(Markdown::H3),
+                    "####" => Some(Markdown::H4),
+                    "#####" => Some(Markdown::H5),
+                    _ => None,
+                }
+            }
+        })
     }
 }
 
@@ -518,5 +566,85 @@ mod test {
         expected.add_tag(TagType::NewLine.into());
         expected.add_text("def");
         assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_h1() {
+        let text = text_to_html2("# heading");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::H1, "heading");
+        assert_eq!(text, expected);
+    }
+
+    #[test]
+    fn test_h1_1() {
+        let text = text_to_html2("# heading **bold**");
+        let mut expected = Tag::from(TagType::Paragraph);
+        let mut h1 = Tag::from(TagType::H1);
+        h1.add_text("heading ");
+        h1.add_tag_w_text(TagType::Bold, "bold");
+        expected.add_tag(h1);
+        assert_eq!(text, expected);
+    }
+
+    #[test]
+    fn test_h1_2() {
+        let text = text_to_html2("# heading **bold**\n# heading **bold**");
+        let mut expected = Tag::from(TagType::Paragraph);
+        let mut h1 = Tag::from(TagType::H1);
+        h1.add_text("heading ");
+        h1.add_tag_w_text(TagType::Bold, "bold");
+        expected.add_tag(h1.clone());
+        expected.add_tag(TagType::NewLine.into());
+        expected.add_tag(h1);
+        assert_eq!(text, expected);
+    }
+
+    #[test]
+    fn test_h1_fail() {
+        let text = text_to_html2("#heading");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("#heading");
+        assert_eq!(text, expected);
+    }
+
+    #[test]
+    fn test_h2() {
+        let text = text_to_html2("## heading");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::H2, "heading");
+        assert_eq!(text, expected);
+    }
+
+    #[test]
+    fn test_h3() {
+        let text = text_to_html2("### heading");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::H3, "heading");
+        assert_eq!(text, expected);
+    }
+
+    #[test]
+    fn test_h4() {
+        let text = text_to_html2("#### heading");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::H4, "heading");
+        assert_eq!(text, expected);
+    }
+
+    #[test]
+    fn test_h5() {
+        let text = text_to_html2("##### heading");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::H5, "heading");
+        assert_eq!(text, expected);
+    }
+
+    #[test]
+    fn test_h6() {
+        let text = text_to_html2("###### heading");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("###### heading");
+        assert_eq!(text, expected);
     }
 }
