@@ -54,7 +54,7 @@ impl Tag {
     // makes unit testing faster
     pub fn add_tag_w_text(&mut self, tag_type: TagType, text: &str) {
         let mut n: Tag = tag_type.into();
-        n.add_text(text.into());
+        n.add_text(text);
         self.add_tag(n);
     }
 }

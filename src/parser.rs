@@ -110,12 +110,10 @@ impl Parser {
                         self.builders.pop_back();
                         self.push_char('`');
                         self.push_md(Markdown::TripleBacktick);
+                    } else if self.is_prev_backslash() {
+                        self.push_char(c);
                     } else {
-                        if self.is_prev_backslash() {
-                            self.push_char(c);
-                        } else {
-                            self.push_md(Markdown::Backtick);
-                        }
+                        self.push_md(Markdown::Backtick);
                     }
                 }
                 _ => self.push_char(c),
@@ -139,18 +137,16 @@ impl Parser {
                         } else {
                             self.builders.push_back(prev);
                         }
+                    } else if self.is_prev_backslash() {
+                        self.push_char(c);
                     } else {
-                        if self.is_prev_backslash() {
-                            self.push_char(c);
-                        } else {
-                            // double backticks, some text, then another backtick
-                            let prev = self.builders.pop_back().unwrap();
-                            self.push_char('`');
-                            let mut new_tag = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
-                            debug_assert!(prev.completed.is_empty());
-                            new_tag.add_text(&prev.in_progress);
-                            self.bubble_tag(new_tag);
-                        }
+                        // double backticks, some text, then another backtick
+                        let prev = self.builders.pop_back().unwrap();
+                        self.push_char('`');
+                        let mut new_tag = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
+                        debug_assert!(prev.completed.is_empty());
+                        new_tag.add_text(&prev.in_progress);
+                        self.bubble_tag(new_tag);
                     }
                 }
                 _ => self.push_char(c),
@@ -163,17 +159,15 @@ impl Parser {
                         } else {
                             unreachable!();
                         }
+                    } else if self.is_prev_backslash() {
+                        self.push_char(c);
                     } else {
-                        if self.is_prev_backslash() {
-                            self.push_char(c);
-                        } else {
-                            let prev = self.builders.pop_back().unwrap();
-                            let mut new_tag = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
-                            // prev.completed should be empty
-                            debug_assert!(prev.completed.is_empty());
-                            new_tag.add_text(&prev.in_progress);
-                            self.bubble_tag(new_tag);
-                        }
+                        let prev = self.builders.pop_back().unwrap();
+                        let mut new_tag = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
+                        // prev.completed should be empty
+                        debug_assert!(prev.completed.is_empty());
+                        new_tag.add_text(&prev.in_progress);
+                        self.bubble_tag(new_tag);
                     }
                 }
                 _ => self.push_char(c),
@@ -196,13 +190,11 @@ impl Parser {
                 '`' => {
                     if !self.is_prev_backslash() {
                         self.push_md(Markdown::Backtick);
+                    } else if let Some(prev) = self.builders.back_mut() {
+                        prev.in_progress.pop();
+                        prev.in_progress.push(c);
                     } else {
-                        if let Some(prev) = self.builders.back_mut() {
-                            prev.in_progress.pop();
-                            prev.in_progress.push(c);
-                        } else {
-                            unreachable!();
-                        }
+                        unreachable!();
                     }
                 }
                 _ => self.push_char(c),
