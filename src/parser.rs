@@ -193,7 +193,18 @@ impl Parser {
                 }
                 '*' => self.push_md(Markdown::Star),
                 '_' => self.push_md(Markdown::Underscore),
-                '`' if !self.is_prev_backslash() => self.push_md(Markdown::Backtick),
+                '`' => {
+                    if !self.is_prev_backslash() {
+                        self.push_md(Markdown::Backtick);
+                    } else {
+                        if let Some(prev) = self.builders.back_mut() {
+                            prev.in_progress.pop();
+                            prev.in_progress.push(c);
+                        } else {
+                            unreachable!();
+                        }
+                    }
+                }
                 _ => self.push_char(c),
             },
         }
@@ -245,7 +256,7 @@ pub fn text_to_html2(text: &str) -> Tag {
 }
 
 fn get_language(text: &str) -> (String, String) {
-    let default = ("text".to_string(), text.to_string());
+    let default = (LANGUAGE_TEXT.to_string(), text.to_string());
     match text.find('\n') {
         Some(x) => {
             let before = text[0..x].to_string();
@@ -380,6 +391,31 @@ mod test {
         bold.add_text("bold ".into());
         bold.add_tag_w_text(TagType::Italics, "italics");
         expected.add_tag(bold);
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_code1() {
+        let test = text_to_html2("`hello world`");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::Code(LANGUAGE_TEXT.into()), "hello world");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_code2() {
+        let test = text_to_html2(r"`hello\` world`");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::Code(LANGUAGE_TEXT.into()), r"hello\` world");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_code3() {
+        let test = text_to_html2(r"\``hello world`");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text(r"`");
+        expected.add_tag_w_text(TagType::Code(LANGUAGE_TEXT.into()), "hello world");
         assert_eq!(test, expected);
     }
 }
