@@ -442,9 +442,9 @@ mod test {
 
     #[test]
     fn test_code6() {
-        let test = text_to_html2("```rust hello\n world```");
+        let test = text_to_html2("```rust\n hello\n world```");
         let mut expected = Tag::from(TagType::Paragraph);
-        expected.add_tag_w_text(TagType::Code("rust".into()), "hello\n world");
+        expected.add_tag_w_text(TagType::Code("rust".into()), " hello\n world");
         assert_eq!(test, expected);
     }
 }
