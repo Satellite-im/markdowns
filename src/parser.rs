@@ -128,10 +128,9 @@ impl Parser {
                         }
                         let prev = self.builders.pop_back().unwrap();
                         if self.prev_matches(Markdown::TripleBacktick) {
-                            let p2 = self.builders.pop_back().unwrap();
-                            let (language, text) = get_language(&p2.in_progress);
+                            let text = self.get_text_from_code_block();
+                            let (language, text) = get_language(&text);
                             let mut new_tag = Tag::from(TagType::Code(language));
-                            debug_assert!(p2.completed.is_empty());
                             new_tag.add_text(&text);
                             self.bubble_tag(new_tag);
                         } else {
@@ -235,6 +234,20 @@ impl Parser {
             .as_ref()
             .and_then(|x| x.in_progress.chars().last())
             .map(|c| c == '\\')
+            .unwrap_or_default()
+    }
+
+    fn get_text_from_code_block(&mut self) -> String {
+        let mut p2 = self.builders.pop_back().unwrap();
+        p2.completed
+            .pop_front()
+            .map(|x| match x {
+                TagValue::Text(y) => y,
+                _ => {
+                    debug_assert!(false);
+                    String::default()
+                }
+            })
             .unwrap_or_default()
     }
 }
