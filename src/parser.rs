@@ -431,4 +431,20 @@ mod test {
         expected.add_tag_w_text(TagType::Code("rust".into()), "hello world");
         assert_eq!(test, expected);
     }
+
+    #[test]
+    fn test_code5() {
+        let test = text_to_html2(r"```rust \`hello world```");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::Code("rust".into()), r"\`hello world");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_code6() {
+        let test = text_to_html2("```rust hello\n world```");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::Code("rust".into()), "hello\n world");
+        assert_eq!(test, expected);
+    }
 }
