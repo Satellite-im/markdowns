@@ -67,6 +67,15 @@ impl Parser {
                     } else {
                         self.push_md(Markdown::DoubleStar);
                     }
+                } else if prev
+                    .in_progress
+                    .chars()
+                    .last()
+                    .map(|x| x.is_whitespace())
+                    .unwrap_or_default()
+                {
+                    self.handle_builder(prev);
+                    self.push_md(Markdown::Star);
                 } else {
                     let mut new_tag = Tag::from(TagType::Italics);
                     new_tag.append_values(prev.completed);
