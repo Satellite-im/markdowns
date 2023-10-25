@@ -445,6 +445,60 @@ mod test {
     }
 
     #[test]
+    fn test_triple_star1() {
+        let test = text_to_html2("***question**");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("*");
+        expected.add_tag_w_text(TagType::Bold, "question");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_triple_star2() {
+        let test = text_to_html2("***question*");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("***question*");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_triple_star3() {
+        let test = text_to_html2("***question***");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("*");
+        expected.add_tag_w_text(TagType::Bold, "question");
+        expected.add_text("*");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_triple_underscore1() {
+        let test = text_to_html2("___question__");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("_");
+        expected.add_tag_w_text(TagType::Bold, "question");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_triple_underscore2() {
+        let test = text_to_html2("___question_");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("___question_");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_triple_underscore3() {
+        let test = text_to_html2("___question___");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("_");
+        expected.add_tag_w_text(TagType::Bold, "question");
+        expected.add_text("_");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
     fn test_plain_italics() {
         let test = text_to_html2("abcd*italics*");
         let mut expected = Tag::from(TagType::Paragraph);
@@ -456,6 +510,14 @@ mod test {
     #[test]
     fn test_italics1() {
         let test = text_to_html2("*italics*");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::Italics, "italics");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_italics2() {
+        let test = text_to_html2("_italics_");
         let mut expected = Tag::from(TagType::Paragraph);
         expected.add_tag_w_text(TagType::Italics, "italics");
         assert_eq!(test, expected);
