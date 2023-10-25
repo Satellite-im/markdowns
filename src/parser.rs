@@ -450,9 +450,9 @@ mod test {
 
     #[test]
     fn test_nesting1() {
-        let test = text_to_html2("**bold * end_bold**");
+        let test = text_to_html2("**bold _end bold**");
         let mut expected = Tag::from(TagType::Paragraph);
-        expected.add_tag_w_text(TagType::Bold, "bold * end_bold");
+        expected.add_tag_w_text(TagType::Bold, "bold _end bold");
         assert_eq!(test, expected);
     }
 
