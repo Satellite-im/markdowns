@@ -33,7 +33,11 @@ pub struct Tag {
 impl Tag {
     pub fn add_text(&mut self, text: &str) {
         if !text.is_empty() {
-            self.values.push_back(TagValue::Text(text.into()));
+            if let Some(TagValue::Text(v)) = self.values.back_mut() {
+                v.push_str(text);
+            } else {
+                self.values.push_back(TagValue::Text(text.into()));
+            }
         }
     }
 
@@ -47,8 +51,19 @@ impl Tag {
         }
     }
 
-    pub fn add_tag_values(&mut self, mut values: VecDeque<TagValue>) {
-        self.values.append(&mut values)
+    pub fn append_values(&mut self, mut values: VecDeque<TagValue>) {
+        while let Some(v) = values.pop_front() {
+            match v {
+                TagValue::Text(v2) => {
+                    if let Some(TagValue::Text(s)) = self.values.back_mut() {
+                        s.push_str(&v2);
+                    } else {
+                        self.values.push_back(TagValue::Text(v2));
+                    }
+                }
+                _ => self.values.push_back(v),
+            }
+        }
     }
 
     // makes unit testing faster

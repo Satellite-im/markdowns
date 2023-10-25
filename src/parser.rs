@@ -62,7 +62,7 @@ impl Parser {
                         if self.prev_matches(Markdown::DoubleStar) {
                             let p2 = self.builders.pop_back().unwrap();
                             let mut new_tag = Tag::from(TagType::Bold);
-                            new_tag.add_tag_values(p2.completed);
+                            new_tag.append_values(p2.completed);
                             new_tag.add_text(&p2.in_progress);
                             self.bubble_tag(new_tag);
                         } else {
@@ -70,7 +70,7 @@ impl Parser {
                         }
                     } else {
                         let mut new_tag = Tag::from(TagType::Italics);
-                        new_tag.add_tag_values(prev.completed);
+                        new_tag.append_values(prev.completed);
                         new_tag.add_text(&prev.in_progress);
                         self.bubble_tag(new_tag);
                     }
@@ -95,7 +95,7 @@ impl Parser {
                         if self.prev_matches(Markdown::DoubleUnderscore) {
                             let p2 = self.builders.pop_back().unwrap();
                             let mut new_tag = Tag::from(TagType::Bold);
-                            new_tag.add_tag_values(p2.completed);
+                            new_tag.append_values(p2.completed);
                             new_tag.add_text(&p2.in_progress);
                             self.bubble_tag(new_tag);
                         } else {
@@ -103,7 +103,7 @@ impl Parser {
                         }
                     } else {
                         let mut new_tag = Tag::from(TagType::Italics);
-                        new_tag.add_tag_values(prev.completed);
+                        new_tag.append_values(prev.completed);
                         new_tag.add_text(&prev.in_progress);
                         self.bubble_tag(new_tag);
                     }
@@ -247,7 +247,7 @@ impl Parser {
 
     fn bubble_tag(&mut self, tag: Tag) {
         if let Some(builder) = self.builders.back_mut() {
-            builder.completed.push_back(TagValue::Tag(tag));
+            builder.append_value(TagValue::Tag(tag));
         } else {
             self.root.add_tag(tag);
         }
@@ -257,7 +257,7 @@ impl Parser {
         match builder.md {
             Markdown::BlockQuote => {
                 let mut tag = Tag::from(TagType::BlockQuote);
-                tag.values.append(&mut builder.completed);
+                tag.append_values(builder.completed);
                 tag.add_text(&builder.in_progress);
                 self.bubble_tag(tag);
             }
@@ -271,16 +271,16 @@ impl Parser {
                     _ => unreachable!(),
                 };
                 let mut tag = Tag::from(tag_type);
-                tag.values.append(&mut builder.completed);
+                tag.append_values(builder.completed);
                 tag.add_text(&builder.in_progress);
                 self.bubble_tag(tag);
             }
             _ => {
                 let mut values = builder.to_values();
                 if let Some(prev) = self.builders.back_mut() {
-                    prev.completed.append(&mut values);
+                    prev.append_values(values);
                 } else {
-                    self.root.values.append(&mut values);
+                    self.root.append_values(values);
                 }
             }
         }
@@ -430,10 +430,7 @@ mod test {
     fn test_partial_bold1() {
         let test = text_to_html2("abcd**bold");
         let mut expected = Tag::from(TagType::Paragraph);
-        expected.add_text("abcd");
-        expected.add_text("**");
-        expected.add_text("bold");
-
+        expected.add_text("abcd**bold");
         assert_eq!(test, expected);
     }
 
@@ -441,10 +438,7 @@ mod test {
     fn test_partial_bold2() {
         let test = text_to_html2("abcd__bold");
         let mut expected = Tag::from(TagType::Paragraph);
-        expected.add_text("abcd");
-        expected.add_text("__");
-        expected.add_text("bold");
-
+        expected.add_text("abcd__bold");
         assert_eq!(test, expected);
     }
 
