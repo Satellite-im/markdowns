@@ -44,6 +44,8 @@ impl Parser {
             _ => true,
         });
 
+        // todo: combine blockquotes
+
         std::mem::take(&mut self.root)
     }
 
@@ -489,6 +491,32 @@ mod test {
         let test = text_to_html2("> some blockquote");
         let mut expected = Tag::from(TagType::Paragraph);
         expected.add_tag_w_text(TagType::BlockQuote, "some blockquote".into());
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_blockquote2() {
+        let test = text_to_html2("> some blockquote __bold__");
+        let mut expected = Tag::from(TagType::Paragraph);
+        let mut bq = Tag::from(TagType::BlockQuote);
+        bq.add_text("some blockquote ");
+        bq.add_tag_w_text(TagType::Bold, "bold");
+        expected.add_tag(bq);
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_blockquote3() {
+        let test = text_to_html2("abc\n> some blockquote __bold__\ndef");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("abc");
+        expected.add_tag(TagType::NewLine.into());
+        let mut bq = Tag::from(TagType::BlockQuote);
+        bq.add_text("some blockquote ");
+        bq.add_tag_w_text(TagType::Bold, "bold");
+        expected.add_tag(bq);
+        expected.add_tag(TagType::NewLine.into());
+        expected.add_text("def");
         assert_eq!(test, expected);
     }
 }
