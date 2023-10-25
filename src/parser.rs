@@ -457,6 +457,15 @@ mod test {
     }
 
     #[test]
+    fn test_nesting2() {
+        let test = text_to_html2("**bold _end bold_");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("**bold ");
+        expected.add_tag_w_text(TagType::Italics, "end bold");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
     fn test_bold1() {
         let test = text_to_html2("**bold**");
         let mut expected = Tag::from(TagType::Paragraph);
