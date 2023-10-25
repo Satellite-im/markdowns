@@ -77,6 +77,16 @@ impl Parser {
                 }
                 _ => self.push_char(c),
             },
+            Markdown::DoubleStar if c == '*' => {
+                // triple star - means nothing.
+                if prev_empty {
+                    self.builders.pop_back();
+                    self.push_char('*');
+                    self.push_md(Markdown::DoubleStar);
+                } else {
+                    self.push_md(Markdown::Star);
+                }
+            }
             Markdown::Underscore => match c {
                 '_' => {
                     let prev = self.builders.pop_back().unwrap();
@@ -100,6 +110,16 @@ impl Parser {
                 }
                 _ => self.push_char(c),
             },
+            Markdown::DoubleUnderscore if c == '_' => {
+                // triple underscore - means nothing.
+                if prev_empty {
+                    self.builders.pop_back();
+                    self.push_char('_');
+                    self.push_md(Markdown::DoubleUnderscore);
+                } else {
+                    self.push_md(Markdown::Underscore);
+                }
+            }
             Markdown::TripleBacktick => match c {
                 '`' => {
                     // 4 backticks in a row
@@ -425,6 +445,14 @@ mod test {
         expected.add_text("__");
         expected.add_text("bold");
 
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_nesting1() {
+        let test = text_to_html2("**bold * end_bold**");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::Bold, "bold * end_bold");
         assert_eq!(test, expected);
     }
 
