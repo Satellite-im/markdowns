@@ -183,6 +183,14 @@ mod test {
     use super::*;
 
     #[test]
+    fn test_edge1() {
+        let test = text_to_html2("*abc _def*");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::Italics, "abc _def");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
     fn test_plain_test() {
         let mut expected = Tag::from(TagType::Paragraph);
         expected.add_text("abcd");
@@ -265,6 +273,14 @@ mod test {
         let test = text_to_html2("** bold**");
         let mut expected = Tag::from(TagType::Paragraph);
         expected.add_text("** bold**");
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_bold4() {
+        let test = text_to_html2("**bold bold**");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag_w_text(TagType::Bold, "bold bold");
         assert_eq!(test, expected);
     }
 
