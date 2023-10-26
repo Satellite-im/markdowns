@@ -31,7 +31,17 @@ pub fn text_to_html2(text: &str) -> Tag {
 
                     // A heading. The first field indicates the level of the heading,
                     // the second the fragment identifier, and the third the classes.
-                    pulldown_cmark::Tag::Heading(heading_level, fragment_identifier, classes) => {}
+                    pulldown_cmark::Tag::Heading(heading_level, _fragment_identifier, _classes) => {
+                        let tag_type = match heading_level {
+                            pulldown_cmark::HeadingLevel::H1 => TagType::H1,
+                            pulldown_cmark::HeadingLevel::H2 => TagType::H2,
+                            pulldown_cmark::HeadingLevel::H3 => TagType::H3,
+                            pulldown_cmark::HeadingLevel::H4 => TagType::H4,
+                            pulldown_cmark::HeadingLevel::H5 => TagType::H5,
+                            pulldown_cmark::HeadingLevel::H6 => TagType::H6,
+                        };
+                        tag_stack.push_back(Tag::from(tag_type));
+                    }
 
                     pulldown_cmark::Tag::BlockQuote => {}
                     // A code block.
@@ -546,7 +556,7 @@ mod test {
     fn test_h6() {
         let text = text_to_html2("###### heading");
         let mut expected = Tag::from(TagType::Paragraph);
-        expected.add_text("###### heading");
+        expected.add_tag_w_text(TagType::H6, "heading");
         assert_eq!(text, expected);
     }
 }
