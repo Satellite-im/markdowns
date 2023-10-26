@@ -1,5 +1,7 @@
 use std::collections::VecDeque;
 
+use pulldown_cmark::Event;
+
 use crate::{
     md::Markdown,
     tag::{Tag, TagType, TagValue},
@@ -8,396 +10,145 @@ use crate::{
 
 const LANGUAGE_TEXT: &str = "text";
 
-pub struct Parser {
-    // everything gets appended to root.values
-    root: Tag,
-    builders: VecDeque<TagBuilder>,
-}
+pub fn text_to_html2(text: &str) -> Tag {
+    let mut root = Tag::from(TagType::Paragraph);
+    let mut is_first = true;
+    let mut options = pulldown_cmark::Options::empty();
+    options.insert(pulldown_cmark::Options::ENABLE_STRIKETHROUGH);
+    for line in text.lines() {
+        let mut values: VecDeque<TagValue> = VecDeque::new();
+        let mut tag_stack: VecDeque<Tag> = VecDeque::new();
+        let mut in_code_block = false;
 
-impl Parser {
-    pub fn new() -> Self {
-        Self {
-            root: TagType::Paragraph.into(),
-            builders: Default::default(),
-        }
-    }
+        let parser = pulldown_cmark::Parser::new_ext(line, options);
 
-    pub fn finish(&mut self) -> Tag {
-        while let Some(builder) = self.builders.pop_back() {
-            self.handle_builder(builder);
-        }
+        let mut it = parser.into_iter();
+        while let Some(event) = it.next() {
+            match event {
+                Event::Start(pulldown_tag) => match pulldown_tag {
+                    // A paragraph of text and other inline elements.
+                    pulldown_cmark::Tag::Paragraph => {}
 
-        self.root.values.retain(|x| match x {
-            TagValue::Text(s) => !s.is_empty(),
-            _ => true,
-        });
+                    // A heading. The first field indicates the level of the heading,
+                    // the second the fragment identifier, and the third the classes.
+                    pulldown_cmark::Tag::Heading(heading_level, fragment_identifier, classes) => {}
 
-        // todo: combine blockquotes
-
-        std::mem::take(&mut self.root)
-    }
-
-    pub fn process(&mut self, c: char) {
-        if self.builders.is_empty() {
-            self.builders.push_back(Default::default());
-        }
-
-        let (prev_md, prev_empty) = self
-            .builders
-            .back()
-            .map(|x| {
-                (
-                    x.md.clone(),
-                    x.in_progress.is_empty() && x.completed.is_empty(),
-                )
-            })
-            .unwrap(); // this never fails per the previous statement.
-
-        match prev_md {
-            Markdown::Star if c == '*' => {
-                let prev = self.builders.pop_back().unwrap();
-                if prev_empty {
-                    // this is the 2nd prev (at least it was before the pop_back())
-                    if self.prev_matches(Markdown::DoubleStar) {
-                        let p2 = self.builders.pop_back().unwrap();
-                        let mut new_tag = Tag::from(TagType::Bold);
-                        new_tag.append_values(p2.completed);
-                        new_tag.add_text(&p2.in_progress);
-                        self.bubble_tag(new_tag);
-                    } else {
-                        self.push_md(Markdown::DoubleStar);
+                    pulldown_cmark::Tag::BlockQuote => {}
+                    // A code block.
+                    pulldown_cmark::Tag::CodeBlock(code_block_kind) => {
+                        in_code_block = true;
                     }
-                } else if prev
-                    .in_progress
-                    .chars()
-                    .last()
-                    .map(|x| x.is_whitespace())
-                    .unwrap_or_default()
-                {
-                    self.handle_builder(prev);
-                    self.push_md(Markdown::Star);
-                } else {
-                    let mut new_tag = Tag::from(TagType::Italics);
-                    new_tag.append_values(prev.completed);
-                    new_tag.add_text(&prev.in_progress);
-                    self.bubble_tag(new_tag);
-                }
-            }
-            Markdown::Star if prev_empty && c.is_whitespace() && c != '\n' => {
-                self.builders.pop_back();
-                self.push_char('*');
-                self.push_char(c);
-            }
-            Markdown::DoubleStar if c == '*' => {
-                // triple star - means nothing.
-                if prev_empty {
-                    self.builders.pop_back();
-                    self.push_char('*');
-                    self.push_md(Markdown::DoubleStar);
-                } else {
-                    self.push_md(Markdown::Star);
-                }
-            }
-            Markdown::DoubleStar if prev_empty && c.is_whitespace() && c != '\n' => {
-                self.builders.pop_back();
-                self.push_char('*');
-                self.push_char('*');
-                self.push_char(c);
-            }
-            Markdown::Underscore if c == '_' => {
-                let prev = self.builders.pop_back().unwrap();
-                if prev_empty {
-                    // this is the 2nd prev (at least it was before the pop_back())
-                    if self.prev_matches(Markdown::DoubleUnderscore) {
-                        let p2 = self.builders.pop_back().unwrap();
-                        let mut new_tag = Tag::from(TagType::Bold);
-                        new_tag.append_values(p2.completed);
-                        new_tag.add_text(&p2.in_progress);
-                        self.bubble_tag(new_tag);
-                    } else {
-                        self.push_md(Markdown::DoubleUnderscore);
+
+                    // A list. If the list is ordered the field indicates the number of the first item.
+                    // Contains only list items.
+                    pulldown_cmark::Tag::List(start_number) => {} // TODO: add delim and tight for ast (not needed for html)
+                    // A list item.
+                    pulldown_cmark::Tag::Item => {}
+                    // A footnote definition. The value contained is the footnote's label by which it can
+                    // be referred to.
+                    pulldown_cmark::Tag::FootnoteDefinition(label) => {}
+
+                    // A table. Contains a vector describing the text-alignment for each of its columns.
+                    pulldown_cmark::Tag::Table(text_alignment) => {}
+                    // A table header. Contains only `TableCell`s. Note that the table body starts immediately
+                    // after the closure of the `TableHead` tag. There is no `TableBody` tag.
+                    pulldown_cmark::Tag::TableHead => {}
+                    // A table row. Is used both for header rows as body rows. Contains only `TableCell`s.
+                    pulldown_cmark::Tag::TableRow => {}
+                    pulldown_cmark::Tag::TableCell => {}
+
+                    // span-level tags
+                    pulldown_cmark::Tag::Emphasis => tag_stack.push_back(TagType::Italics.into()),
+                    pulldown_cmark::Tag::Strong => tag_stack.push_back(TagType::Bold.into()),
+                    pulldown_cmark::Tag::Strikethrough => {
+                        tag_stack.push_back(TagType::Strikethrough.into())
                     }
-                } else {
-                    let mut new_tag = Tag::from(TagType::Italics);
-                    new_tag.append_values(prev.completed);
-                    new_tag.add_text(&prev.in_progress);
-                    self.bubble_tag(new_tag);
-                }
-            }
-            Markdown::Underscore if prev_empty && c.is_whitespace() && c != '\n' => {
-                self.builders.pop_back();
-                self.push_char('_');
-                self.push_char(c);
-            }
-            Markdown::DoubleUnderscore if c == '_' => {
-                // triple underscore - means nothing.
-                if prev_empty {
-                    self.builders.pop_back();
-                    self.push_char('_');
-                    self.push_md(Markdown::DoubleUnderscore);
-                } else {
-                    self.push_md(Markdown::Underscore);
-                }
-            }
-            Markdown::DoubleUnderscore if prev_empty && c.is_whitespace() && c != '\n' => {
-                self.builders.pop_back();
-                self.push_char('_');
-                self.push_char('_');
-                self.push_char(c);
-            }
-            Markdown::TripleBacktick => match c {
-                '`' => {
-                    // 4 backticks in a row
-                    if prev_empty {
-                        self.builders.pop_back();
-                        self.push_char('`');
-                        self.push_md(Markdown::TripleBacktick);
-                    } else if self.is_prev_backslash() {
-                        self.push_char(c);
-                    } else {
-                        self.push_md(Markdown::Backtick);
+
+                    // A link. The first field is the link type, the second the destination URL and the third is a title.
+                    pulldown_cmark::Tag::Link(link_type, dest, link_title) => {}
+
+                    // An image. The first field is the link type, the second the destination URL and the third is a title.
+                    pulldown_cmark::Tag::Image(link_type, dest, image_title) => {}
+                },
+                Event::End(tag_type) => {
+                    if matches!(tag_type, pulldown_cmark::Tag::CodeBlock(_)) {
+                        in_code_block = false;
+                    }
+                    if let Some(tag) = tag_stack.pop_back() {
+                        if let Some(prev) = tag_stack.back_mut() {
+                            prev.add_tag(tag);
+                        } else {
+                            values.push_back(TagValue::Tag(tag));
+                        }
                     }
                 }
-                _ => self.push_char(c),
-            },
-            Markdown::DoubleBacktick if c == '`' => {
-                if prev_empty {
-                    if let Some(prev) = self.builders.back_mut() {
-                        prev.md = Markdown::TripleBacktick;
+                Event::Text(text) => {
+                    if let Some(tag) = tag_stack.back_mut() {
+                        tag.add_text(&text);
                     } else {
-                        unreachable!();
+                        values.push_back(TagValue::Text(text.to_string()));
                     }
-                    let prev = self.builders.pop_back().unwrap();
-                    if self.prev_matches(Markdown::TripleBacktick) {
-                        let text = self.get_text_from_code_block();
-                        let (language, text) = get_language(&text);
-                        let mut new_tag = Tag::from(TagType::Code(language));
-                        new_tag.add_text(&text);
-                        self.bubble_tag(new_tag);
-                    } else {
-                        self.builders.push_back(prev);
-                    }
-                } else if self.is_prev_backslash() {
-                    self.push_char(c);
-                } else {
-                    // double backticks, some text, then another backtick
-                    let prev = self.builders.pop_back().unwrap();
-                    self.push_char('`');
-                    let mut new_tag = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
-                    debug_assert!(prev.completed.is_empty());
-                    new_tag.add_text(&prev.in_progress);
-                    self.bubble_tag(new_tag);
                 }
-            }
-            Markdown::Backtick if c != '\n' => match c {
-                '`' => {
-                    if prev_empty {
-                        if let Some(prev) = self.builders.back_mut() {
-                            prev.md = Markdown::DoubleBacktick;
+                Event::Code(text) => {
+                    if let Some(tag) = tag_stack.back_mut() {
+                        tag.add_tag_w_text(TagType::Code(LANGUAGE_TEXT.into()), &text);
+                    } else {
+                        let mut t = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
+                        t.add_text(&text);
+                        values.push_back(TagValue::Tag(t));
+                    }
+                }
+                Event::Html(text) => {
+                    if let Some(tag) = tag_stack.back_mut() {
+                        tag.add_text(&text);
+                    } else {
+                        values.push_back(TagValue::Text(text.to_string()));
+                    }
+                }
+                Event::FootnoteReference(text) => {}
+                Event::HardBreak | Event::SoftBreak => {
+                    if in_code_block {
+                        if let Some(tag) = tag_stack.back_mut() {
+                            tag.add_text("\n");
                         } else {
                             unreachable!();
                         }
-                    } else if self.is_prev_backslash() {
-                        self.push_char(c);
                     } else {
-                        let prev = self.builders.pop_back().unwrap();
-                        let mut new_tag = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
-                        // prev.completed should be empty
-                        debug_assert!(prev.completed.is_empty());
-                        new_tag.add_text(&prev.in_progress);
-                        self.bubble_tag(new_tag);
+                        let t = Tag::from(TagType::NewLine);
+                        if let Some(tag) = tag_stack.back_mut() {
+                            tag.add_tag(t);
+                        } else {
+                            values.push_back(TagValue::Tag(t));
+                        }
                     }
                 }
-                _ => self.push_char(c),
-            },
-            Markdown::Tilde if c == '~' => {
-                if prev_empty {
-                    if let Some(prev) = self.builders.back_mut() {
-                        prev.md = Markdown::DoubleTilde;
-                    } else {
-                        unreachable!();
-                    }
-                    // todo: check if p2 is double tilde and if so, make strikethrough
-                } else {
-                    // todo: turn prev tilde into a regular character and push a new markdown
-                    todo!();
-                }
+                Event::Rule => {}
+                Event::TaskListMarker(is_checked) => {}
             }
-            Markdown::Tilde if prev_empty && c.is_whitespace() && c != '\n' => {
-                self.builders.pop_back();
-                self.push_char('~');
-                self.push_char(c);
-            }
-            _ => match c {
-                '\n' => {
-                    while let Some(builder) = self.builders.pop_back() {
-                        self.handle_builder(builder);
-                    }
-                    let new_tag = Tag::from(TagType::NewLine);
-                    self.root.add_tag(new_tag);
-                }
-                '*' => self.push_md(Markdown::Star),
-                '_' => self.push_md(Markdown::Underscore),
-                '`' => {
-                    if !self.is_prev_backslash() {
-                        self.push_md(Markdown::Backtick);
-                    } else if let Some(prev) = self.builders.back_mut() {
-                        prev.in_progress.pop();
-                        prev.in_progress.push(c);
-                    } else {
-                        unreachable!();
-                    }
-                }
-                '~' => self.push_md(Markdown::Tilde),
-                ' ' if self.is_start_of_blockquote() => {
-                    if let Some(prev) = self.builders.back_mut() {
-                        prev.in_progress.pop();
-                    } else {
-                        unreachable!();
-                    }
-                    self.push_md(Markdown::BlockQuote);
-                }
-                ' ' => {
-                    if let Some(md) = self.try_get_header_md() {
-                        self.builders.pop_back();
-                        self.push_md(md);
-                    } else {
-                        self.push_char(c);
-                    }
-                }
-                _ => self.push_char(c),
-            },
         }
-    }
 
-    fn bubble_tag(&mut self, tag: Tag) {
-        if let Some(builder) = self.builders.back_mut() {
-            builder.append_value(TagValue::Tag(tag));
+        // before adding the new tag, check if a newline should be added
+        if is_first {
+            is_first = false;
         } else {
-            self.root.add_tag(tag);
+            // add a newline for root, unless there's 2 successive block quotes
+            let t = Tag::from(TagType::NewLine);
+            root.add_tag(t);
         }
-    }
 
-    fn handle_builder(&mut self, mut builder: TagBuilder) {
-        match builder.md {
-            Markdown::BlockQuote => {
-                let mut tag = Tag::from(TagType::BlockQuote);
-                tag.append_values(builder.completed);
-                tag.add_text(&builder.in_progress);
-                self.bubble_tag(tag);
-            }
-            Markdown::H1 | Markdown::H2 | Markdown::H3 | Markdown::H4 | Markdown::H5 => {
-                let tag_type = match builder.md {
-                    Markdown::H1 => TagType::H1,
-                    Markdown::H2 => TagType::H2,
-                    Markdown::H3 => TagType::H3,
-                    Markdown::H4 => TagType::H4,
-                    Markdown::H5 => TagType::H5,
-                    _ => unreachable!(),
-                };
-                let mut tag = Tag::from(tag_type);
-                tag.append_values(builder.completed);
-                tag.add_text(&builder.in_progress);
-                self.bubble_tag(tag);
-            }
-            _ => {
-                let values = builder.to_values();
-                if let Some(prev) = self.builders.back_mut() {
-                    prev.append_values(values);
-                } else {
-                    self.root.append_values(values);
-                }
-            }
-        }
-    }
-
-    fn push_char(&mut self, c: char) {
-        if let Some(builder) = self.builders.back_mut() {
-            builder.in_progress.push(c);
-        } else {
-            unreachable!()
-        }
-    }
-
-    fn push_md(&mut self, md: Markdown) {
-        if let Some(builder) = self.builders.back_mut() {
-            builder.save_progress();
-        }
-        self.builders.push_back(md.into());
-    }
-
-    fn prev_matches(&self, md: Markdown) -> bool {
-        self.builders.back().map(|x| x.md == md).unwrap_or_default()
-    }
-
-    fn is_prev_backslash(&self) -> bool {
-        self.builders
-            .back()
-            .as_ref()
-            .and_then(|x| x.in_progress.chars().last())
-            .map(|c| c == '\\')
-            .unwrap_or_default()
-    }
-
-    fn is_prev_space(&self) -> bool {
-        self.builders
-            .back()
-            .as_ref()
-            .and_then(|x| x.in_progress.chars().last())
-            .map(|c| c.is_whitespace())
-            .unwrap_or_default()
-    }
-
-    fn is_start_of_blockquote(&self) -> bool {
-        match self.builders.back() {
-            None => false,
-            Some(t) => match t.md {
-                Markdown::NewLine | Markdown::Line => {
-                    t.completed.is_empty() && t.in_progress == ">"
-                }
-                _ => false,
-            },
-        }
-    }
-
-    fn get_text_from_code_block(&mut self) -> String {
-        let mut p2 = self.builders.pop_back().unwrap();
-        p2.completed
-            .pop_front()
-            .map(|x| match x {
-                TagValue::Text(y) => y,
-                _ => {
-                    debug_assert!(false);
-                    String::default()
-                }
-            })
-            .unwrap_or_default()
-    }
-
-    fn try_get_header_md(&mut self) -> Option<Markdown> {
-        self.builders.back().and_then(|builder| {
-            if !builder.completed.is_empty() {
-                None
+        // combine tag stack
+        while let Some(tag) = tag_stack.pop_back() {
+            if let Some(prev) = tag_stack.back_mut() {
+                prev.add_tag(tag);
             } else {
-                match builder.in_progress.as_str() {
-                    "#" => Some(Markdown::H1),
-                    "##" => Some(Markdown::H2),
-                    "###" => Some(Markdown::H3),
-                    "####" => Some(Markdown::H4),
-                    "#####" => Some(Markdown::H5),
-                    _ => None,
-                }
+                values.push_back(TagValue::Tag(tag));
             }
-        })
-    }
-}
+        }
 
-pub fn text_to_html2(text: &str) -> Tag {
-    let mut parser = Parser::new();
-    for c in text.chars() {
-        parser.process(c);
+        root.append_values(values);
     }
-    parser.finish()
+
+    root
 }
 
 fn get_language(text: &str) -> (String, String) {
