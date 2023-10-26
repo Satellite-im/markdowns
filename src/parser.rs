@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use pulldown_cmark::Event;
+use pulldown_cmark::{CodeBlockKind, Event};
 
 use crate::{
     md::Markdown,
@@ -47,6 +47,17 @@ pub fn text_to_html2(text: &str) -> Tag {
                     // A code block.
                     pulldown_cmark::Tag::CodeBlock(code_block_kind) => {
                         in_code_block = true;
+                        let language = match code_block_kind {
+                            CodeBlockKind::Indented => LANGUAGE_TEXT.into(),
+                            CodeBlockKind::Fenced(lang) => {
+                                if lang.is_empty() {
+                                    LANGUAGE_TEXT.into()
+                                } else {
+                                    lang.to_string()
+                                }
+                            }
+                        };
+                        tag_stack.push_back(Tag::from(TagType::Code(language)));
                     }
 
                     // A list. If the list is ordered the field indicates the number of the first item.
