@@ -15,159 +15,148 @@ pub fn text_to_html2(text: &str) -> Tag {
     let mut is_first = true;
     let mut options = pulldown_cmark::Options::empty();
     options.insert(pulldown_cmark::Options::ENABLE_STRIKETHROUGH);
-    for line in text.lines() {
-        let mut values: VecDeque<TagValue> = VecDeque::new();
-        let mut tag_stack: VecDeque<Tag> = VecDeque::new();
-        let mut in_code_block = false;
 
-        let parser = pulldown_cmark::Parser::new_ext(line, options);
+    let mut values: VecDeque<TagValue> = VecDeque::new();
+    let mut tag_stack: VecDeque<Tag> = VecDeque::new();
+    let mut in_code_block = false;
 
-        let mut it = parser.into_iter();
-        while let Some(event) = it.next() {
-            match event {
-                Event::Start(pulldown_tag) => match pulldown_tag {
-                    // A paragraph of text and other inline elements.
-                    pulldown_cmark::Tag::Paragraph => {}
+    let parser = pulldown_cmark::Parser::new_ext(text, options);
+    let mut it = parser.into_iter();
+    while let Some(event) = it.next() {
+        match event {
+            Event::Start(pulldown_tag) => match pulldown_tag {
+                // A paragraph of text and other inline elements.
+                pulldown_cmark::Tag::Paragraph => {}
 
-                    // A heading. The first field indicates the level of the heading,
-                    // the second the fragment identifier, and the third the classes.
-                    pulldown_cmark::Tag::Heading(heading_level, _fragment_identifier, _classes) => {
-                        let tag_type = match heading_level {
-                            pulldown_cmark::HeadingLevel::H1 => TagType::H1,
-                            pulldown_cmark::HeadingLevel::H2 => TagType::H2,
-                            pulldown_cmark::HeadingLevel::H3 => TagType::H3,
-                            pulldown_cmark::HeadingLevel::H4 => TagType::H4,
-                            pulldown_cmark::HeadingLevel::H5 => TagType::H5,
-                            pulldown_cmark::HeadingLevel::H6 => TagType::H6,
-                        };
-                        tag_stack.push_back(Tag::from(tag_type));
-                    }
+                // A heading. The first field indicates the level of the heading,
+                // the second the fragment identifier, and the third the classes.
+                pulldown_cmark::Tag::Heading(heading_level, _fragment_identifier, _classes) => {
+                    let tag_type = match heading_level {
+                        pulldown_cmark::HeadingLevel::H1 => TagType::H1,
+                        pulldown_cmark::HeadingLevel::H2 => TagType::H2,
+                        pulldown_cmark::HeadingLevel::H3 => TagType::H3,
+                        pulldown_cmark::HeadingLevel::H4 => TagType::H4,
+                        pulldown_cmark::HeadingLevel::H5 => TagType::H5,
+                        pulldown_cmark::HeadingLevel::H6 => TagType::H6,
+                    };
+                    tag_stack.push_back(Tag::from(tag_type));
+                }
 
-                    pulldown_cmark::Tag::BlockQuote => {}
-                    // A code block.
-                    pulldown_cmark::Tag::CodeBlock(code_block_kind) => {
-                        in_code_block = true;
-                        let language = match code_block_kind {
-                            CodeBlockKind::Indented => LANGUAGE_TEXT.into(),
-                            CodeBlockKind::Fenced(lang) => {
-                                if lang.is_empty() {
-                                    LANGUAGE_TEXT.into()
-                                } else {
-                                    lang.to_string()
-                                }
+                pulldown_cmark::Tag::BlockQuote => {}
+                // A code block.
+                pulldown_cmark::Tag::CodeBlock(code_block_kind) => {
+                    in_code_block = true;
+                    let language = match code_block_kind {
+                        CodeBlockKind::Indented => LANGUAGE_TEXT.into(),
+                        CodeBlockKind::Fenced(lang) => {
+                            if lang.is_empty() {
+                                LANGUAGE_TEXT.into()
+                            } else {
+                                lang.to_string()
                             }
-                        };
-                        tag_stack.push_back(Tag::from(TagType::Code(language)));
-                    }
-
-                    // A list. If the list is ordered the field indicates the number of the first item.
-                    // Contains only list items.
-                    pulldown_cmark::Tag::List(start_number) => {} // TODO: add delim and tight for ast (not needed for html)
-                    // A list item.
-                    pulldown_cmark::Tag::Item => {}
-                    // A footnote definition. The value contained is the footnote's label by which it can
-                    // be referred to.
-                    pulldown_cmark::Tag::FootnoteDefinition(label) => {}
-
-                    // A table. Contains a vector describing the text-alignment for each of its columns.
-                    pulldown_cmark::Tag::Table(text_alignment) => {}
-                    // A table header. Contains only `TableCell`s. Note that the table body starts immediately
-                    // after the closure of the `TableHead` tag. There is no `TableBody` tag.
-                    pulldown_cmark::Tag::TableHead => {}
-                    // A table row. Is used both for header rows as body rows. Contains only `TableCell`s.
-                    pulldown_cmark::Tag::TableRow => {}
-                    pulldown_cmark::Tag::TableCell => {}
-
-                    // span-level tags
-                    pulldown_cmark::Tag::Emphasis => tag_stack.push_back(TagType::Italics.into()),
-                    pulldown_cmark::Tag::Strong => tag_stack.push_back(TagType::Bold.into()),
-                    pulldown_cmark::Tag::Strikethrough => {
-                        tag_stack.push_back(TagType::Strikethrough.into())
-                    }
-
-                    // A link. The first field is the link type, the second the destination URL and the third is a title.
-                    pulldown_cmark::Tag::Link(link_type, dest, link_title) => {}
-
-                    // An image. The first field is the link type, the second the destination URL and the third is a title.
-                    pulldown_cmark::Tag::Image(link_type, dest, image_title) => {}
-                },
-                Event::End(tag_type) => {
-                    if matches!(tag_type, pulldown_cmark::Tag::CodeBlock(_)) {
-                        in_code_block = false;
-                    }
-                    if let Some(tag) = tag_stack.pop_back() {
-                        if let Some(prev) = tag_stack.back_mut() {
-                            prev.add_tag(tag);
-                        } else {
-                            values.push_back(TagValue::Tag(tag));
                         }
+                    };
+                    tag_stack.push_back(Tag::from(TagType::Code(language)));
+                }
+
+                // A list. If the list is ordered the field indicates the number of the first item.
+                // Contains only list items.
+                pulldown_cmark::Tag::List(start_number) => {} // TODO: add delim and tight for ast (not needed for html)
+                // A list item.
+                pulldown_cmark::Tag::Item => {}
+                // A footnote definition. The value contained is the footnote's label by which it can
+                // be referred to.
+                pulldown_cmark::Tag::FootnoteDefinition(label) => {}
+
+                // A table. Contains a vector describing the text-alignment for each of its columns.
+                pulldown_cmark::Tag::Table(text_alignment) => {}
+                // A table header. Contains only `TableCell`s. Note that the table body starts immediately
+                // after the closure of the `TableHead` tag. There is no `TableBody` tag.
+                pulldown_cmark::Tag::TableHead => {}
+                // A table row. Is used both for header rows as body rows. Contains only `TableCell`s.
+                pulldown_cmark::Tag::TableRow => {}
+                pulldown_cmark::Tag::TableCell => {}
+
+                // span-level tags
+                pulldown_cmark::Tag::Emphasis => tag_stack.push_back(TagType::Italics.into()),
+                pulldown_cmark::Tag::Strong => tag_stack.push_back(TagType::Bold.into()),
+                pulldown_cmark::Tag::Strikethrough => {
+                    tag_stack.push_back(TagType::Strikethrough.into())
+                }
+
+                // A link. The first field is the link type, the second the destination URL and the third is a title.
+                pulldown_cmark::Tag::Link(link_type, dest, link_title) => {}
+
+                // An image. The first field is the link type, the second the destination URL and the third is a title.
+                pulldown_cmark::Tag::Image(link_type, dest, image_title) => {}
+            },
+            Event::End(tag_type) => {
+                if matches!(tag_type, pulldown_cmark::Tag::CodeBlock(_)) {
+                    in_code_block = false;
+                }
+                if let Some(tag) = tag_stack.pop_back() {
+                    if let Some(prev) = tag_stack.back_mut() {
+                        prev.add_tag(tag);
+                    } else {
+                        values.push_back(TagValue::Tag(tag));
                     }
                 }
-                Event::Text(text) => {
-                    if let Some(tag) = tag_stack.back_mut() {
-                        tag.add_text(&text);
-                    } else {
-                        values.push_back(TagValue::Text(text.to_string()));
-                    }
+            }
+            Event::Text(text) => {
+                if let Some(tag) = tag_stack.back_mut() {
+                    tag.add_text(&text);
+                } else {
+                    values.push_back(TagValue::Text(text.to_string()));
                 }
-                Event::Code(text) => {
+            }
+            Event::Code(text) => {
+                if let Some(tag) = tag_stack.back_mut() {
+                    tag.add_tag_w_text(TagType::Code(LANGUAGE_TEXT.into()), &text);
+                } else {
+                    let mut t = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
+                    t.add_text(&text);
+                    values.push_back(TagValue::Tag(t));
+                }
+            }
+            Event::Html(text) => {
+                if let Some(tag) = tag_stack.back_mut() {
+                    tag.add_text(&text);
+                } else {
+                    values.push_back(TagValue::Text(text.to_string()));
+                }
+            }
+            Event::FootnoteReference(text) => {}
+            Event::HardBreak | Event::SoftBreak => {
+                if in_code_block {
                     if let Some(tag) = tag_stack.back_mut() {
-                        tag.add_tag_w_text(TagType::Code(LANGUAGE_TEXT.into()), &text);
+                        tag.add_text("\n");
                     } else {
-                        let mut t = Tag::from(TagType::Code(LANGUAGE_TEXT.into()));
-                        t.add_text(&text);
+                        unreachable!();
+                    }
+                } else {
+                    let t: Tag = Tag::from(TagType::NewLine);
+                    if let Some(tag) = tag_stack.back_mut() {
+                        tag.add_tag(t);
+                    } else {
                         values.push_back(TagValue::Tag(t));
                     }
                 }
-                Event::Html(text) => {
-                    if let Some(tag) = tag_stack.back_mut() {
-                        tag.add_text(&text);
-                    } else {
-                        values.push_back(TagValue::Text(text.to_string()));
-                    }
-                }
-                Event::FootnoteReference(text) => {}
-                Event::HardBreak | Event::SoftBreak => {
-                    if in_code_block {
-                        if let Some(tag) = tag_stack.back_mut() {
-                            tag.add_text("\n");
-                        } else {
-                            unreachable!();
-                        }
-                    } else {
-                        let t = Tag::from(TagType::NewLine);
-                        if let Some(tag) = tag_stack.back_mut() {
-                            tag.add_tag(t);
-                        } else {
-                            values.push_back(TagValue::Tag(t));
-                        }
-                    }
-                }
-                Event::Rule => {}
-                Event::TaskListMarker(is_checked) => {}
             }
+            Event::Rule => {}
+            Event::TaskListMarker(is_checked) => {}
         }
-
-        // before adding the new tag, check if a newline should be added
-        if is_first {
-            is_first = false;
-        } else {
-            // add a newline for root, unless there's 2 successive block quotes
-            let t = Tag::from(TagType::NewLine);
-            root.add_tag(t);
-        }
-
-        // combine tag stack
-        while let Some(tag) = tag_stack.pop_back() {
-            if let Some(prev) = tag_stack.back_mut() {
-                prev.add_tag(tag);
-            } else {
-                values.push_back(TagValue::Tag(tag));
-            }
-        }
-
-        root.append_values(values);
     }
+
+    // combine tag stack
+    while let Some(tag) = tag_stack.pop_back() {
+        if let Some(prev) = tag_stack.back_mut() {
+            prev.add_tag(tag);
+        } else {
+            values.push_back(TagValue::Tag(tag));
+        }
+    }
+
+    root.append_values(values);
 
     root
 }
