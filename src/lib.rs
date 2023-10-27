@@ -538,4 +538,51 @@ mod test {
         expected.add_tag_w_text(TagType::H6, "heading");
         assert_eq!(text, expected);
     }
+
+    #[test]
+    fn test_multiline1() {
+        let text = text_to_html("this\nis\na\ntest");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_text("this");
+        expected.add_tag(Tag::from(TagType::NewLine));
+        expected.add_text("is");
+        expected.add_tag(Tag::from(TagType::NewLine));
+        expected.add_text("a");
+        expected.add_tag(Tag::from(TagType::NewLine));
+        expected.add_text("test");
+        assert_eq!(text, expected);
+    }
+
+    #[test]
+    fn test_multiline2() {
+        let text = text_to_html("\nthis\nis\na\ntest");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag(Tag::from(TagType::NewLine));
+        expected.add_text("this");
+        expected.add_tag(Tag::from(TagType::NewLine));
+        expected.add_text("is");
+        expected.add_tag(Tag::from(TagType::NewLine));
+        expected.add_text("a");
+        expected.add_tag(Tag::from(TagType::NewLine));
+        expected.add_text("test");
+        assert_eq!(text, expected);
+    }
+
+    #[test]
+    fn test_multiline3() {
+        let text = text_to_html("\nthis\n\nis\n\n\na\ntest");
+        let mut expected = Tag::from(TagType::Paragraph);
+        expected.add_tag(Tag::from(TagType::NewLine));
+        expected.add_text("this");
+        expected.add_tag(Tag::from(TagType::NewLine));
+        expected.add_tag(Tag::from(TagType::NewLine));
+        expected.add_text("is");
+        expected.add_tag(Tag::from(TagType::NewLine));
+        expected.add_tag(Tag::from(TagType::NewLine));
+        expected.add_tag(Tag::from(TagType::NewLine));
+        expected.add_text("a");
+        expected.add_tag(Tag::from(TagType::NewLine));
+        expected.add_text("test");
+        assert_eq!(text, expected);
+    }
 }
