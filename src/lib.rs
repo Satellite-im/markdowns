@@ -19,8 +19,8 @@ pub fn text_to_html(text: &str) -> Tag {
     let mut in_code_block = false;
 
     let parser = pulldown_cmark::Parser::new_ext(text, options);
-    let mut it = parser.into_iter();
-    while let Some(event) = it.next() {
+    let it = parser;
+    for event in it {
         match event {
             Event::Start(pulldown_tag) => match pulldown_tag {
                 // A paragraph of text and other inline elements.
@@ -59,15 +59,15 @@ pub fn text_to_html(text: &str) -> Tag {
 
                 // A list. If the list is ordered the field indicates the number of the first item.
                 // Contains only list items.
-                pulldown_cmark::Tag::List(start_number) => {} // TODO: add delim and tight for ast (not needed for html)
+                pulldown_cmark::Tag::List(_start_number) => {} // TODO: add delim and tight for ast (not needed for html)
                 // A list item.
                 pulldown_cmark::Tag::Item => {}
                 // A footnote definition. The value contained is the footnote's label by which it can
                 // be referred to.
-                pulldown_cmark::Tag::FootnoteDefinition(label) => {}
+                pulldown_cmark::Tag::FootnoteDefinition(_label) => {}
 
                 // A table. Contains a vector describing the text-alignment for each of its columns.
-                pulldown_cmark::Tag::Table(text_alignment) => {}
+                pulldown_cmark::Tag::Table(_text_alignment) => {}
                 // A table header. Contains only `TableCell`s. Note that the table body starts immediately
                 // after the closure of the `TableHead` tag. There is no `TableBody` tag.
                 pulldown_cmark::Tag::TableHead => {}
@@ -83,10 +83,10 @@ pub fn text_to_html(text: &str) -> Tag {
                 }
 
                 // A link. The first field is the link type, the second the destination URL and the third is a title.
-                pulldown_cmark::Tag::Link(link_type, dest, link_title) => {}
+                pulldown_cmark::Tag::Link(_link_type, _dest, _link_title) => {}
 
                 // An image. The first field is the link type, the second the destination URL and the third is a title.
-                pulldown_cmark::Tag::Image(link_type, dest, image_title) => {}
+                pulldown_cmark::Tag::Image(_link_type, _dest, _image_title) => {}
             },
             Event::End(pulldown_cmark::Tag::CodeBlock(_)) => {
                 in_code_block = false;
@@ -96,7 +96,7 @@ pub fn text_to_html(text: &str) -> Tag {
                         val.pop();
                         val.pop();
                         val.pop();
-                    } else if val.ends_with("`") {
+                    } else if val.ends_with('`') {
                         val.pop();
                     }
                 }
@@ -133,7 +133,7 @@ pub fn text_to_html(text: &str) -> Tag {
                     values.push_back(TagValue::Text(text.to_string()));
                 }
             }
-            Event::FootnoteReference(text) => {}
+            Event::FootnoteReference(_text) => {}
             Event::HardBreak | Event::SoftBreak => {
                 if in_code_block {
                     if let Some(tag) = tag_stack.back_mut() {
@@ -151,7 +151,7 @@ pub fn text_to_html(text: &str) -> Tag {
                 }
             }
             Event::Rule => {}
-            Event::TaskListMarker(is_checked) => {}
+            Event::TaskListMarker(_is_checked) => {}
         }
     }
 
@@ -362,7 +362,7 @@ mod test {
         let mut expected = Tag::from(TagType::Paragraph);
         expected.add_text("abcd");
         let mut bold = Tag::from(TagType::Bold);
-        bold.add_text("bold ".into());
+        bold.add_text("bold ");
         bold.add_tag_w_text(TagType::Italics, "italics");
         expected.add_tag(bold);
         assert_eq!(test, expected);
@@ -431,7 +431,7 @@ mod test {
     fn test_blockquote1() {
         let test = text_to_html("> some blockquote");
         let mut expected = Tag::from(TagType::Paragraph);
-        expected.add_tag_w_text(TagType::BlockQuote, "some blockquote".into());
+        expected.add_tag_w_text(TagType::BlockQuote, "some blockquote");
         assert_eq!(test, expected);
     }
 
