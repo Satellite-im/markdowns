@@ -90,10 +90,23 @@ pub fn text_to_html2(text: &str) -> Tag {
                 // An image. The first field is the link type, the second the destination URL and the third is a title.
                 pulldown_cmark::Tag::Image(link_type, dest, image_title) => {}
             },
-            Event::End(tag_type) => {
-                if matches!(tag_type, pulldown_cmark::Tag::CodeBlock(_)) {
-                    in_code_block = false;
+            Event::End(pulldown_cmark::Tag::CodeBlock(_)) => {
+                in_code_block = false;
+                let back = tag_stack.back_mut().unwrap();
+                if let Some(TagValue::Text(val)) = back.values.back_mut() {
+                    if val.ends_with("```") {
+                        val.pop();
+                        val.pop();
+                        val.pop();
+                        let (language, new_val) = get_language(val);
+                        let _ = std::mem::replace(back, Tag::from(TagType::Code(language)));
+                        back.add_text(&new_val);
+                    } else if val.ends_with("`") {
+                        val.pop();
+                    }
                 }
+            }
+            Event::End(_) => {
                 if let Some(tag) = tag_stack.pop_back() {
                     if let Some(prev) = tag_stack.back_mut() {
                         prev.add_tag(tag);
