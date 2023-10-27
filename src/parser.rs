@@ -47,7 +47,9 @@ pub fn text_to_html2(text: &str) -> Tag {
                 pulldown_cmark::Tag::CodeBlock(code_block_kind) => {
                     in_code_block = true;
                     let language = match code_block_kind {
-                        CodeBlockKind::Indented => LANGUAGE_TEXT.into(),
+                        CodeBlockKind::Indented => {
+                            LANGUAGE_TEXT.into()
+                        }
                         CodeBlockKind::Fenced(lang) => {
                             if lang.is_empty() {
                                 LANGUAGE_TEXT.into()
@@ -98,9 +100,6 @@ pub fn text_to_html2(text: &str) -> Tag {
                         val.pop();
                         val.pop();
                         val.pop();
-                        let (language, new_val) = get_language(val);
-                        let _ = std::mem::replace(back, Tag::from(TagType::Code(language)));
-                        back.add_text(&new_val);
                     } else if val.ends_with("`") {
                         val.pop();
                     }
@@ -439,7 +438,7 @@ mod test {
     fn test_code4() {
         let test = text_to_html2(r"```rust hello world```");
         let mut expected = Tag::from(TagType::Paragraph);
-        expected.add_tag_w_text(TagType::Code("rust".into()), "hello world");
+        expected.add_tag_w_text(TagType::Code("text".into()), "rust hello world");
         assert_eq!(test, expected);
     }
 
@@ -447,7 +446,7 @@ mod test {
     fn test_code5() {
         let test = text_to_html2(r"```rust \`hello world```");
         let mut expected = Tag::from(TagType::Paragraph);
-        expected.add_tag_w_text(TagType::Code("rust".into()), r"\`hello world");
+        expected.add_tag_w_text(TagType::Code("text".into()), r"rust \`hello world");
         assert_eq!(test, expected);
     }
 
