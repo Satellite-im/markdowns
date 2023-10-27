@@ -173,31 +173,6 @@ pub fn text_to_html2(text: &str) -> Tag {
     root
 }
 
-fn get_language(text: &str) -> (String, String) {
-    let default = (LANGUAGE_TEXT.to_string(), text.to_string());
-    match text.find('\n') {
-        Some(x) => {
-            let before = text[0..x].to_string();
-            let after: String = text.chars().skip(x + 1).collect();
-            match before.trim() {
-                x if !x.is_empty() => (x.to_string(), after),
-                _ => default,
-            }
-        }
-        None => match text.find(' ') {
-            Some(x) => {
-                let before = text[0..x].to_string();
-                let after: String = text.chars().skip(x + 1).collect();
-                match before.trim() {
-                    x if !x.is_empty() => (x.to_string(), after),
-                    _ => default,
-                }
-            }
-            None => default,
-        },
-    }
-}
-
 #[cfg(test)]
 mod test {
     use crate::tag::TagType;
