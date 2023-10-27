@@ -47,9 +47,7 @@ pub fn text_to_html2(text: &str) -> Tag {
                 pulldown_cmark::Tag::CodeBlock(code_block_kind) => {
                     in_code_block = true;
                     let language = match code_block_kind {
-                        CodeBlockKind::Indented => {
-                            LANGUAGE_TEXT.into()
-                        }
+                        CodeBlockKind::Indented => LANGUAGE_TEXT.into(),
                         CodeBlockKind::Fenced(lang) => {
                             if lang.is_empty() {
                                 LANGUAGE_TEXT.into()
@@ -210,9 +208,7 @@ mod test {
     fn test_plain_bold2() {
         let test = text_to_html2("abcd__bold__");
         let mut expected = Tag::from(TagType::Paragraph);
-        expected.add_text("abcd");
-        expected.add_tag_w_text(TagType::Bold, "bold");
-
+        expected.add_text("abcd__bold__");
         assert_eq!(test, expected);
     }
 
@@ -294,7 +290,8 @@ mod test {
     fn test_triple_star2() {
         let test = text_to_html2("***question*");
         let mut expected = Tag::from(TagType::Paragraph);
-        expected.add_text("***question*");
+        expected.add_text("**");
+        expected.add_tag_w_text(TagType::Italics, "question");
         assert_eq!(test, expected);
     }
 
@@ -302,9 +299,9 @@ mod test {
     fn test_triple_star3() {
         let test = text_to_html2("***question***");
         let mut expected = Tag::from(TagType::Paragraph);
-        expected.add_text("*");
-        expected.add_tag_w_text(TagType::Bold, "question");
-        expected.add_text("*");
+        let mut italics = Tag::from(TagType::Italics);
+        italics.add_tag_w_text(TagType::Bold, "question");
+        expected.add_tag(italics);
         assert_eq!(test, expected);
     }
 
@@ -321,7 +318,8 @@ mod test {
     fn test_triple_underscore2() {
         let test = text_to_html2("___question_");
         let mut expected = Tag::from(TagType::Paragraph);
-        expected.add_text("___question_");
+        expected.add_text("__");
+        expected.add_tag_w_text(TagType::Italics, "question");
         assert_eq!(test, expected);
     }
 
@@ -329,9 +327,9 @@ mod test {
     fn test_triple_underscore3() {
         let test = text_to_html2("___question___");
         let mut expected = Tag::from(TagType::Paragraph);
-        expected.add_text("_");
-        expected.add_tag_w_text(TagType::Bold, "question");
-        expected.add_text("_");
+        let mut italics = Tag::from(TagType::Italics);
+        italics.add_tag_w_text(TagType::Bold, "question");
+        expected.add_tag(italics);
         assert_eq!(test, expected);
     }
 
@@ -376,11 +374,9 @@ mod test {
     fn test_nested_bold_italics2() {
         let test = text_to_html2("abcd__bold *italics*__");
         let mut expected = Tag::from(TagType::Paragraph);
-        expected.add_text("abcd");
-        let mut bold = Tag::from(TagType::Bold);
-        bold.add_text("bold ".into());
-        bold.add_tag_w_text(TagType::Italics, "italics");
-        expected.add_tag(bold);
+        expected.add_text("abcd__bold ");
+        expected.add_tag_w_text(TagType::Italics, "italics");
+        expected.add_text("__");
         assert_eq!(test, expected);
     }
 
@@ -494,7 +490,6 @@ mod test {
         h1.add_text("heading ");
         h1.add_tag_w_text(TagType::Bold, "bold");
         expected.add_tag(h1.clone());
-        expected.add_tag(TagType::NewLine.into());
         expected.add_tag(h1);
         assert_eq!(text, expected);
     }
