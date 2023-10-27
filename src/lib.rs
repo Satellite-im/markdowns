@@ -19,8 +19,7 @@ pub fn text_to_html(text: &str) -> Tag {
     let mut in_code_block = false;
 
     let parser = pulldown_cmark::Parser::new_ext(text, options);
-    let it = parser;
-    for event in it {
+    for event in parser {
         match event {
             Event::Start(pulldown_tag) => match pulldown_tag {
                 // A paragraph of text and other inline elements.
